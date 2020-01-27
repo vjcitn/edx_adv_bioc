@@ -1,0 +1,16 @@
+Package: edxAdvBioc
+Title: course development, edx advanced bioconductor
+Description: Document course development for edx advanced bioconductor.
+Version: 0.0.1
+Author: Vince Carey
+Suggests: knitr
+Imports: shiny, DT, org.Hs.eg.db, GO.db, miniUI
+Depends: 
+Maintainer: VJ Carey <stvjc@channing.harvard.edu>
+License: Artistic-2.0
+LazyLoad: yes
+LazyData: yes
+biocViews: variants
+VignetteBuilder: knitr
+RoxygenNote: 7.0.2
+Encoding: UTF-8

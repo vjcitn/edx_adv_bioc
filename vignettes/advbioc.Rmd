@@ -1,0 +1,134 @@
+---
+title: "advanced bioc edx course sketch"
+author: "Vincent J. Carey, stvjc at channing.harvard.edu"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteIndexEntry{}
+  %\VignetteEncoding{UTF-8}
+output:
+  BiocStyle::html_document:
+    highlight: pygments
+    number_sections: yes
+    theme: united
+    toc: yes
+---
+
+# Week 1: Visualization for genomic data science
+
+Related resources: [Griffith lab course](https://genviz.org/course/)
+
+## Overview: base graphics, ggplot2, and graphic file formats
+
+### Displaying structure in multivariate data
+
+#### Setting up the airway dataset
+
+```{r getd} 
+library(airway)
+data(gse)
+gse # uses gencode gene names
+rownames(gse) = gsub("\\..*", "", rownames(gse)) # ENS
+library(org.Hs.eg.db)
+ss = select(org.Hs.eg.db, keys=rownames(gse), 
+   keytype="ENSEMBL", columns=c("GENENAME", "SYMBOL"))
+dr = which(duplicated(ss[,1]) | is.na(ss[,1]))
+ss = ss[-dr,]
+rownames(ss) = ss[,1]
+ok = intersect(rownames(ss), rownames(gse))
+gse = gse[ok,]
+rownames(gse) = ss[rownames(gse),]$SYMBOL
+gse = gse[-which(is.na(rownames(gse))),]
+```
+
+#### Visualizing one-dimensional data
+
+We will work with a reduction of the information
+in the experiment, summing columns of the assay matrix.
+We want to present the information for rapid uptake
+in context.  We could just use a table
+```{r lktab}
+data.frame(colsum=colSums(assay(gse)), donor=gse$donor, trt=gse$condition)
+```
+but the numbers are unwieldy, and patterns are hard to extract
+from the text.
+
+Questions
+
+1. What is the interpretation of `colSums(assay(gse))`?
+
+2. Execute [when we go live the results of code chunks
+in problems is suppressed]
+```{r lksums}
+plot(colSums(assay(gse)))
+text(1:8, colSums(assay(gse)), 
+  labels=paste0(gse$donor, "\n", 
+             gse$names, "\n", 
+             substr(gse$condition,1,3)), cex=.6)
+```  
+Which of the following is not true?
+
+- Sample SRR1039517 had the most reads
+- Depth of sequencing was fairly uniform across the samples
+- The largest increase in number of reads with dexamethasone treatment was for cell N080611
+- The difference in average read counts for cells N052611 and N061011  was less than 120000 reads
+
+3. Try
+
+```{r lktxt}
+plot(colSums(assay(gse)), 
+    pch=" ", xlim=c(0,9), axes=FALSE, xlab=" ")
+text(colSums(assay(gse)), 
+    label=paste0(gse$donor, "\n", gse$condition), 
+    col=as.numeric(gse$donor), font=2)
+axis(2)
+```
+
+Two of the plotted data elements have defects.  What graphical
+parameters can be used to achieve a better rendering?
+
+Easiest answer: `ylim`
+```{r lktxt2}
+plot(colSums(assay(gse)), 
+    pch=" ", xlim=c(0,9), axes=FALSE, xlab=" ", ylim=c(1.25e7,3.2e7))
+text(colSums(assay(gse)), 
+    label=paste0(gse$donor, "\n", gse$condition), 
+    col=as.numeric(gse$donor), font=2)
+axis(2)
+```
+
+#### Sketching densities
+
+Here we'll work with some RNA-seq data developed in the Cancer
+Genome Atlas.
+
+```{r gettc, cache=TRUE}
+suppressMessages({
+library(curatedTCGAData)
+ex = curatedTCGAData(c("PRAD", "ACC"), assay="RNAseq2GeneNorm", 
+  dry.run=FALSE)
+})
+ex
+cs = lapply(experiments(ex), function(x) colSums(assay(x)))
+```
+```{r dopl}
+plot(density(cs[[2]]))
+lines(density(cs[[1]]), lty=2)
+legend(2.3e7, 4e-7, legend=c("type 1", "type 2"))
+```
+
+Question: What should you substitute for 'type 1' in the legend
+so that the tumor type on which the solid density trace is based
+appears in the legend?  Answer should be either 'PRAD' or 'ACC'.
+
+Question: Which axis records the depth of sequencing for the
+various experiments?  x or y?
+
+
+
+# Week 2: Interactive apps with Bioconductor and shiny
+
+# Week 3: Memory-sparing solutions for large data with Bioconductor
+
+# Week 4: Using python resources with Bioconductor
+
