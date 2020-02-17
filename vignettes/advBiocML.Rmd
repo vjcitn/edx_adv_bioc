@@ -1,0 +1,405 @@
+---
+title: "Machine learning applications in cancer: Using microarrays, TCGA and mlr3"
+author: "Vincent J. Carey, stvjc at channing.harvard.edu"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteIndexEntry{}
+  %\VignetteEncoding{UTF-8}
+output:
+  BiocStyle::html_document:
+    highlight: pygments
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 4
+---
+
+# Introduction
+
+## General definition
+The [wikipedia entry for "machine learning"](https://en.wikipedia.org/wiki/Machine_learning) reads
+
+<blockquote style="font-size:12px">
+Machine learning (ML) is the scientific study of algorithms and statistical models that computer systems use to perform a specific task without using explicit instructions, relying on patterns and inference instead. It is seen as a subset of artificial intelligence. Machine learning algorithms build a mathematical model based on sample data, known as "training data", in order to make predictions or decisions without being explicitly programmed to perform the task.
+</blockquote>
+
+This definition is imprecise in many ways, and the phrase "without being explicitly programmed"
+is particularly hard to understand.  Our perspective on machine learning focuses on
+the possibility of automating interpretation of data.  This is also imprecise, but
+helps to expose a few key objectives.
+
+First, the primary aim of statistical science is the production of generic, reusable approaches 
+supporting "interpretation of data".  This
+underlies the use of statistical procedures and tests 
+in specific scientific pursuits such
+as biological experimentation or use of economic and behavioral
+data in reasoning about public policy. **Machine learning methods
+are applications of methods of statistical science to data interpretation.**
+
+Second, one objective of automating data interpretation is
+increasing throughput of interpretation processes in a cost-effective
+way.  Now that sequencers, microscope imaging tools, and sensors can 
+generate data at very high (and increasing) resolution and volume,
+manual methods of interpretation based on human perception and
+reasoning must be supplemented or replaced by mechanized methods.
+**Machine learning methods increase our capacity to perform
+statistical data interpretation on extremely large volumes of data.**
+
+Third, a highly attractive objective of automating data interpretation
+is elimination of biases, often introduced by human interpreters,
+that have cultural, attitudinal, or technical origins.  **Machine
+learning methods promise to remove hidden biases from the
+process of data interpretation.**
+
+In summary, motivations to study and use methods of machine
+learning are driven primarily by the aim of producing
+unbiased statistical analyses of burgeoning data volumes.
+
+## Caveats
+
+It must be kept in mind that there are very significant
+barriers to achieving aims of useful unbiased interpretation
+of vast collections of high-dimensional data as are common
+in genomic data science.
+
+- **Limitations of statistical analysis.**  Bradley Efron, a leading statistician
+and inventor of a number of highly effective
+statistical procedures such as the bootstrap,
+remarked: "Statistics is the most successful
+information science.  Those who ignore it are condemned to
+reinvent it."  Results of centuries of research in 
+probability and statistics are available for our
+use, but do not lead to consensus on very basic issues
+such as measurement and comparison of evidence in
+observations.  Another leading statistician, G. E. P. Box,
+has remarked "All models are wrong, but some are
+more useful than others."  Key problems with
+use of simple statistical models include
+hidden dependencies among observations,
+and incompleteness of data collection.
+It turns out to be fairly difficult to obtain
+a random sample of a population, but much
+of what we hope to accomplish with simple statistics
+depends on effective sampling.
+- **Data $\neq$ information**.  When properly
+implemented, machine learning tools allow us to cost-effectively
+"visit" all the records in vast data collections.
+At best, this provides two unique sources of value.  First,
+traversal of very large samples permits us to produce
+estimates of population characteristics that are
+highly precise -- averages, for example, will have
+very small standard errors.  Second, by surveying
+very large collections, we have greater opportunities
+to observe "rare" characteristics of population members.
+These products of machine learning procedures are
+noteworthy, but are often of secondary scientific interest.
+- **Garbage in, garbage out.**  The notion that
+the mechanistic dimension of machine learning aids
+in eliminating biases in data interpretation is
+wholly unfounded.  Data selection for algorithm
+training, and algorithm structures themselves,
+can lead to machine learning processes and
+outcomes that are inappropriate for the target
+population.  In the domain of natural language
+processing, [gender and racial biases were identified
+in established procedures for text interpretation](https://arxiv.org/abs/1608.07187).
+
+These are a few of the caveats that should be borne in mind
+when considering how machine learning can be employed in genomic data science.
+
+
+
+
+<!--
+When scientific method, applied to well-defined data, 
+is invoked to justify particular decisions or assertions
+in the presence of uncertainty,
+-->
+
+
+# An initial demonstration: Golub's 1999 leukemia study
+
+Our objective here is to use a machine learning framework
+for R with gene expression data assembled in leukemia studies.
+We'll start with some older microarray data and
+check whether the findings are compatible with analyses
+using more recent RNA-seq studies.
+
+The source is
+```
+Molecular Classification of Cancer: Class Discovery and Class
+     Prediction by Gene Expression Monitoring, Science, 531-537, 1999,
+     T. R. Golub and D. K. Slonim and P. Tamayo and C. Huard and M.
+     Gaasenbeek and J. P. Mesirov and H. Coller and M.L. Loh and J. R.
+     Downing and M. A. Caligiuri and C. D. Bloomfield and E. S. Lander
+```
+
+## Transform Expression Data to data.frame
+
+Bioconductor's `golubEsets` package provides
+ExpressionSet instances of the training and test
+data from this paper.
+
+Here we obtain the training data and convert to SummarizedExperiment format.
+
+```{r get1}
+library(golubEsets)
+data(Golub_Train)
+Golub_Train
+library(SummarizedExperiment)
+goltr = as(Golub_Train, "SummarizedExperiment")
+```
+The expression measures were recorded as integers and
+we convert them to double precision here, as
+most statistical procedures will assume this
+representation.
+```{r dodf}
+tmp = assay(goltr)
+class(tmp[1,1])
+tmp[] = as.double(tmp[])
+assay(goltr) = tmp
+goltr
+```
+
+We will use the expression data to predict
+the form of leukemia.  AML is used to denote
+acute myelogenous leukemia, ALL is for
+acute lymphocytic leukemia.
+```{r get2}
+table(goltr$ALL.AML)
+```
+
+Now, to simplify use of the `mlr3` package, we
+convert the assay data to a data.frame.
+We'll add "Class" at the final column
+to hold our class variable.
+
+```{r dodf2}
+goltrdf = data.frame(t(assay(goltr)), Class=goltr$ALL.AML)
+dim(goltrdf)
+```
+
+## Use mlr3 structures
+
+`mlr3` is really an ecosystem of packages devoted
+to modernizing machine learning in R.  Users
+
+- define `Tasks`, which consist mainly of identifying
+feature data and prediction targets
+- a process related to task definition is `Filtering`,
+and procedures for ordering features are provided
+- specify `Learners`, which are really classes of
+algorithms for predicting some feature values on the
+basis of others, or for characterizing structures in
+the data on the basis of patterns identified among features
+- execute learning processes
+
+## Task setup
+
+First we set up the 'task' of predicting
+ALL vs AML with all the features.
+```{r donew}
+library(mlr3)
+library(mlr3learners)
+t1 = TaskClassif$new("myl1", goltrdf, "Class")
+t1
+```
+
+This has all available features.  We will introduce a filtering step
+to reduce the feature set, just below.
+
+### Set up a test task
+
+
+We will also create a task that can be used to
+assess results of learning, based on data left
+out of the training process.
+
+```{r dote}
+data(Golub_Test)
+golte = as(Golub_Test, "SummarizedExperiment")
+tmp = assay(golte)
+class(tmp[1,1])
+tmp[] = as.double(tmp[])
+assay(golte) = tmp
+goltedf = data.frame(t(assay(golte)), Class=golte$ALL.AML)
+t2 = TaskClassif$new("myt1", goltedf, "Class")
+```
+
+### Filtering features using variation across samples
+
+A very simple approach to ordering features with respect
+to utility for prediction ranks them according to
+variation across samples.  The idea is that a feature
+showing no variation would be completely useless.  A
+caveat is that variation due to the presence of data
+errors and outliers should not be highly valued, but
+could be under this simple rubric.
+More subtle approaches are available and will
+be explored in exercises.
+
+We'll retain
+the top 500 features in this variance-based ranking.
+
+```{r doffff}
+library(mlr3filters)
+NFEAT = 500 
+filter = flt("variance")
+filter$calculate(t1, nfeat=NFEAT)
+dim(as.data.table(filter))
+as.data.frame(as.data.table(filter))[1:5,]
+kp = as.data.frame(as.data.table(filter))$feature[1:NFEAT]
+```
+
+### Select the random forests learner
+
+The options for learners can be seen with
+`mlr_learners`:
+```{r lkrn}
+mlr_learners
+```
+
+Here we define the task using the filtered features in the training
+set.  We'll then use `classif.ranger` to train a random
+forests learner.  We'll ask that variable importance
+be recorded, using the 'impurity' metric.
+
+```{r dorange}
+t1f = TaskClassif$new("myrf", goltrdf[, c(kp, "Class")], "Class")
+t1f
+l1 = lrn("classif.ranger", importance="impurity")
+set.seed(1234) # for random forests
+l1$train(t1f)
+l1$model
+```
+
+The confusion matrix for prediction on the 'left out' data is:
+```{r thecon}
+ll = l1$predict(t2)
+aa = as.data.frame(as.data.table(ll))
+table(aa[,2], aa[,3])
+```
+
+Note the out-of-bag estimate of accuracy, which is based
+on the training data.  Because the random forest learner
+does internal training with resampling, we _could_ legitimately use
+`Golub_Merge` for our analysis and will do so in exercises.
+
+## Retrieving and assessing a 'signature' from the variable importance measures
+
+The probe IDs for the top 20 genes as recorded in
+the random forests application are:
+```{r wkip}
+library(ranger) # for importance()
+top20 = names(tail(sort(importance(l1$model)),20))
+top20
+```
+There's a little glitch in the name processing.
+```{r lkgli}
+library(hu6800.db)
+top20 = gsub("\\.", "-", top20)
+all(top20 %in% keys(hu6800.db))
+```
+We can decode these to gene symbols as follows:
+```{r dolib}
+library(hu6800.db)
+signat = mapIds(hu6800.db, keys=top20, column="SYMBOL", keytype="PROBEID")
+signat
+```
+We'll use the merged data.  First we check the pairwise
+scatterplot for four genes.
+```{r lklkk}
+data(Golub_Merge)
+mat = exprs(Golub_Merge[top20,])
+rownames(mat) = signat
+class = Golub_Merge$ALL.AML
+pairs(t(mat[17:20,]), col=factor(class))
+```
+Now we use PCA and biplots to look for
+structure.
+```{r dobip}
+pp = prcomp(t(mat), scale=TRUE)
+par(mfrow=c(1,2))
+plot(pp$x[,1:2], col=factor(class))
+plot(pp$x[,2:3], col=factor(class))
+legend(2,-2,col=1:2,legend=levels(factor(class)), pch=c(1,1))
+par(mfrow=c(1,2))
+biplot(pp)
+biplot(pp, 2:3)
+```
+
+The points are projections of the expression data
+for individuals into principal components space -- on
+the left, PC2 is plotted against PC1, and on the right,
+PC3 is plotted against PC3.  The right hand plot
+suggests that expression variation in samples may be structured
+with three 
+Could this be suggestive of AML subtypes?  Let's explore in TCGA.
+
+# Working with TCGA LAML data
+
+## Data acquisition for one assay on one tumor type
+
+`curatedTCGAData` uses ExperimentHub to simplify repeated
+usage of TCGA data.
+
+```{r gettcda,cache=TRUE}
+suppressMessages({
+library(curatedTCGAData)
+laml = curatedTCGAData("LAML", "RNASeq2GeneNorm", dry.run=FALSE)
+})
+laml
+```
+
+This data structure is convenient for grouping multiple assays.
+We can simplify to a single SummarizedExperiment as we are
+focusing on expression.
+```{r dosimp}
+library(MultiAssayExperiment)
+e1 = experiments(laml)[[1]]
+colData(e1) = colData(laml)
+e1
+```
+
+## Subsetting to genes of interest; PCA and biplot
+
+We'll use our microarray-derived signature to extract 
+`r length(intersect(signat, rownames(e1)))`
+genes for exploration.
+
+
+```{r getint,fig.height=7,fig.width=7}
+comm = intersect(signat, rownames(e1))
+rr = assay(e1[comm,])
+ppseq = prcomp(t(rr), scale=TRUE)
+biplot(ppseq,expand=.9,cex=c(1.3,.8),xlabs=rep(".",nrow(ppseq$x)))
+```
+We see some indication of a subgroup defined by higher expression
+of ELANE, and another defined by  higher expression of CTSD.
+
+## Survival analysis
+
+The survival data are not in great shape.  We'll have to subset
+to individuals with putatively interpretable information.
+
+
+```{r dosur}
+library(survival)
+e1s = e1[,!is.na(e1$vital_status)|e1$days_to_death>0]
+obstime = apply(cbind(e1$days_to_death, e1$days_to_last_followup),1,function(x)max(x, na.rm=TRUE))
+obstime[!is.finite(obstime)] = NA
+sf = survfit(Surv(obstime, e1s$vital_status)~I(as.numeric(assay(e1s["ELANE",]))>1280))
+sf
+plot(sf, lty=1:2)
+cc = coxph(Surv(obstime, e1s$vital_status)~I(as.numeric(assay(e1s["ELANE",]))>1280))
+summary(cc)
+```
+
+# Simplifying translation from SE to mlr3
+
+```{r doclust}
+library(edxAdvBioc)
+fall_golub = se_to_filtered_task(taskid='f1', se=goltr, "ALL.AML")
+fall_tcga = se_to_filtered_task(taskid='f2', se=e1, tmaker=mlr3cluster::TaskClust)
+```
