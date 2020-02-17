@@ -21,8 +21,13 @@ output:
 suppressMessages({
 suppressPackageStartupMessages({
 library(BiocStyle)
+library(MLInterfaces)
+library(ALL)
+library(hgu95av2.db)
+options(digits=3)
 })
 })
+```
 
 ## General definition
 The [wikipedia entry for "machine learning"](https://en.wikipedia.org/wiki/Machine_learning) reads
@@ -121,54 +126,51 @@ The following four panel display presents simple machine learning
 results for modeling the relationship between outcomes in
 acute lymphocytic leukemia.  Briefly, microarray assays
 on patients with this disease were assembled in the Bioconductor
-package `r BiocPkg("ALL")`.  Two classes of patients
+package `r Biocpkg("ALL")`.  Two classes of patients
 are distinguished: those with a genetic aberration called
 BCR/ABL fusion, and those without.  Expression measurements
 on two genes, DDR1 and DYRK4, were obtained and plotted in
 the plane, colored according to the class of the donor.
 For example, the point (DDR1 $\approx$ 8.55, DYRK4 $\approx$ 5.0)
-is colored black and corresponds to who is of class "other",
-and does not have the BCR/ABL fusion mutation.
+is colored black and corresponds to an individuals who is of class "other",
+who does not have the BCR/ABL fusion mutation.
 
-```{r doman,cache=TRUE,echo=FALSE,results="hide",fig.height=6.5}
-suppressMessages({
-suppressPackageStartupMessages({
-library(MLInterfaces)
-library(ALL)
-library(hgu95av2.db)
-})
-})
+```{r doman,echo=FALSE}
 data(ALL)
 aln = ALL
 suppressMessages({
 rownames(aln) = make.names(mapIds(hgu95av2.db,keys=rownames(aln), column="SYMBOL", keytype="PROBEID"), unique=TRUE)
 })
 aln$class = factor(ifelse(aln$mol.biol=="BCR/ABL", "fusion", "other"))
+source("myseed.R")
 trainInds = sample(1:ncol(aln),40)
-```{r lk4, echo=FALSE}
-par(mfrow=c(2,2), mar=c(4,4,2,1))
 set.seed(1234);     rgg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], rpartI, trainInds, minsplit=4)
+set.seed(1234);     kgg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], knnI(k=1), trainInds)
+set.seed(1234);     ngg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], nnetI, trainInds, 
+   size=4, decay=.01, trace=FALSE)
+set.seed(1234);     sgg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], svmI, trainInds)
+```
+```{r lk4, echo=FALSE,fig.height=6.5,fig.cap="Four learning algorithms for classifying leukemia subtype using expression of two genes.  Points are training data, region color at (x,y) is prediction of class for patient bearing expression values (x,y)."}
+par(mfrow=c(2,2), mar=c(4,4,2,1))
 planarPlot(rgg, aln[c("DDR1", "DYRK4"),], "class")
-title("rpart")
+title("(a) rpart")
 trx = exprs(aln)["DDR1",trainInds]
 trz = exprs(aln)["DYRK4",trainInds]
 trcol = ifelse(aln$class[trainInds]=="fusion", "yellow", "black")
 points(trx, trz, col=trcol, pch=16)
 legend(8.5,7.1,pch=c(16,16), col=c("yellow", "black"), legend=c("fusion", "other"), bg="transparent")
-set.seed(1234);     kgg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], knnI(k=3), trainInds)
+legend(6.0,5.6,fill=pal[1:2],legend=c("pred. fusion", "pred. other"), bg="transparent")
 planarPlot(kgg, aln[c("DDR1", "DYRK4"),], "class")
 points(trx, trz, col=trcol, pch=16)
-title("3-nn")
-set.seed(1234);     ngg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], nnetI, trainInds, 
-   size=4, decay=.01, trace=FALSE)
+title("(b) 1-nn")
 planarPlot(ngg, aln[c("DDR1", "DYRK4"),], "class")
 points(trx, trz, col=trcol, pch=16)
-title("nnet, size=4, decay=.01")
-set.seed(1234);     sgg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], svmI, trainInds)
+title("(c) nnet, size=4, decay=.01")
 planarPlot(sgg, aln[c("DDR1", "DYRK4"),], "class")
 points(trx, trz, col=trcol, pch=16)
-title("svm")
+title("(d) svm")
 ```
+
 
 Each plot presents the same configuration of yellow and black
 data points, but the coloring of the background varies from
@@ -183,19 +185,45 @@ expression configuration are BCR/ABL fusion-free.
 We will now look at the different learning procedures
 in greater detail.
 
-## rpart: recursive partitioning
+### rpart: recursive partitioning
 
-```{r doag,echo=FALSE,fig.height=6.5}
+Recursive partitioning (also known as "CART", for
+classification and regression trees) is a machine learning procedure
+with a long history.  Details about the algorithm are given
+in a very useful [vignette](https://cran.r-project.org/web/packages/rpart/vignettes/longintro.pdf).
+Briefly, we are given the values $x_i$ of set of $p$ variables measured on individual $i$, $i = 1, \ldots, N$,
+and a class label $c_i$ for each individual.
+
+From the package vignette by Therneau and Atkinson, we have the following
+characterization of the algorithm for creating trees.
+"The tree is built by the following process: first the single variable is found which best
+splits the data into two groups.... The data is separated, and
+then this process is applied separately to each sub-group, and so on recursively until the
+subgroups either reach a minimum size (5 for this data) or until no improvement can be
+made."
+
+The tree leading to Figure 1(a) is
+
+```{r doag,fig.height=6.5,fig.cap="Fitted tree for Figure 1(a).",echo=FALSE}
 plot(rgg@RObject)
 text(rgg@RObject)
 ```
 
+We read this plot by "going left" when the condition at a branch point is met.
+We can use this rule to understand the left-most leaf of the tree (fusion) and
+the teal-colored region at the top center of the rpart panel.  We start at the top
+with DDR1 $\geq$ 7.287, move left and find a new branch wit DDR $<$ 7.987.
+Continuing to the left, we are now in the interval 7.287 $<$ DDR $<$ 7.287,
+and if we continue to the left and assert DYRK $\geq$ 6.461, we move to the
+left and end at 'fusion'.
 
-<!--
-When scientific method, applied to well-defined data, 
-is invoked to justify particular decisions or assertions
-in the presence of uncertainty,
--->
+A report on the trained tree is
+```{r lkzzz,echo=FALSE}
+RObject(rgg)
+```
+
+
+### k-nearest neighbors
 
 
 # An initial demonstration: Golub's 1999 leukemia study
