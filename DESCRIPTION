@@ -1,9 +1,9 @@
 Package: edxAdvBioc
 Title: course development, edx advanced bioconductor
 Description: Document course development for edx advanced bioconductor.
-Version: 0.0.1
+Version: 0.0.2
 Author: Vince Carey
-Suggests: knitr
+Suggests: knitr, mlr3, mlr3learners, mlr3filters, mlr3cluster
 Imports: shiny, DT, org.Hs.eg.db, GO.db, miniUI
 Depends: 
 Maintainer: VJ Carey <stvjc@channing.harvard.edu>
