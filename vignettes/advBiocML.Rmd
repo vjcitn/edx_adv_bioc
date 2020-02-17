@@ -17,6 +17,13 @@ output:
 
 # Introduction
 
+```{r setup,echo=FALSE}
+suppressMessages({
+suppressPackageStartupMessages({
+library(BiocStyle)
+})
+})
+
 ## General definition
 The [wikipedia entry for "machine learning"](https://en.wikipedia.org/wiki/Machine_learning) reads
 
@@ -108,7 +115,80 @@ in established procedures for text interpretation](https://arxiv.org/abs/1608.07
 These are a few of the caveats that should be borne in mind
 when considering how machine learning can be employed in genomic data science.
 
+## Illustrations of a few basic methods
 
+The following four panel display presents simple machine learning
+results for modeling the relationship between outcomes in
+acute lymphocytic leukemia.  Briefly, microarray assays
+on patients with this disease were assembled in the Bioconductor
+package `r BiocPkg("ALL")`.  Two classes of patients
+are distinguished: those with a genetic aberration called
+BCR/ABL fusion, and those without.  Expression measurements
+on two genes, DDR1 and DYRK4, were obtained and plotted in
+the plane, colored according to the class of the donor.
+For example, the point (DDR1 $\approx$ 8.55, DYRK4 $\approx$ 5.0)
+is colored black and corresponds to who is of class "other",
+and does not have the BCR/ABL fusion mutation.
+
+```{r doman,cache=TRUE,echo=FALSE,results="hide",fig.height=6.5}
+suppressMessages({
+suppressPackageStartupMessages({
+library(MLInterfaces)
+library(ALL)
+library(hgu95av2.db)
+})
+})
+data(ALL)
+aln = ALL
+suppressMessages({
+rownames(aln) = make.names(mapIds(hgu95av2.db,keys=rownames(aln), column="SYMBOL", keytype="PROBEID"), unique=TRUE)
+})
+aln$class = factor(ifelse(aln$mol.biol=="BCR/ABL", "fusion", "other"))
+trainInds = sample(1:ncol(aln),40)
+```{r lk4, echo=FALSE}
+par(mfrow=c(2,2), mar=c(4,4,2,1))
+set.seed(1234);     rgg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], rpartI, trainInds, minsplit=4)
+planarPlot(rgg, aln[c("DDR1", "DYRK4"),], "class")
+title("rpart")
+trx = exprs(aln)["DDR1",trainInds]
+trz = exprs(aln)["DYRK4",trainInds]
+trcol = ifelse(aln$class[trainInds]=="fusion", "yellow", "black")
+points(trx, trz, col=trcol, pch=16)
+legend(8.5,7.1,pch=c(16,16), col=c("yellow", "black"), legend=c("fusion", "other"), bg="transparent")
+set.seed(1234);     kgg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], knnI(k=3), trainInds)
+planarPlot(kgg, aln[c("DDR1", "DYRK4"),], "class")
+points(trx, trz, col=trcol, pch=16)
+title("3-nn")
+set.seed(1234);     ngg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], nnetI, trainInds, 
+   size=4, decay=.01, trace=FALSE)
+planarPlot(ngg, aln[c("DDR1", "DYRK4"),], "class")
+points(trx, trz, col=trcol, pch=16)
+title("nnet, size=4, decay=.01")
+set.seed(1234);     sgg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], svmI, trainInds)
+planarPlot(sgg, aln[c("DDR1", "DYRK4"),], "class")
+points(trx, trz, col=trcol, pch=16)
+title("svm")
+```
+
+Each plot presents the same configuration of yellow and black
+data points, but the coloring of the background varies from
+plot to plot.  Each (x,y) point in the plane is colored peach if the
+learning method predicts that individuals with x as their
+DDR1 expression value, and y as their DYRK4 value, are of the
+"other class", and colored teal if the individual with expression
+values (x=DDR1, y=DYRK4) has the BCR/ABL fusion.  Thus, even
+though no data points are available at (x,y) = (9.0, 5.0),
+all the procedures predict that individuals with that
+expression configuration are BCR/ABL fusion-free.
+We will now look at the different learning procedures
+in greater detail.
+
+## rpart: recursive partitioning
+
+```{r doag,echo=FALSE,fig.height=6.5}
+plot(rgg@RObject)
+text(rgg@RObject)
+```
 
 
 <!--
@@ -144,10 +224,14 @@ data from this paper.
 Here we obtain the training data and convert to SummarizedExperiment format.
 
 ```{r get1}
+suppressMessages({
+suppressPackageStartupMessages({
 library(golubEsets)
+library(SummarizedExperiment)
+})
+})
 data(Golub_Train)
 Golub_Train
-library(SummarizedExperiment)
 goltr = as(Golub_Train, "SummarizedExperiment")
 ```
 The expression measures were recorded as integers and
