@@ -120,7 +120,7 @@ in established procedures for text interpretation](https://arxiv.org/abs/1608.07
 These are a few of the caveats that should be borne in mind
 when considering how machine learning can be employed in genomic data science.
 
-## Illustrations of a few basic methods
+## Basic concepts and examples of machine learning
 
 The following four panel display presents simple machine learning
 results for modeling the relationship between outcomes in
@@ -132,8 +132,9 @@ BCR/ABL fusion, and those without.  Expression measurements
 on two genes, DDR1 and DYRK4, were obtained and plotted in
 the plane, colored according to the class of the donor.
 For example, the point (DDR1 $\approx$ 8.55, DYRK4 $\approx$ 5.0)
-is colored black and corresponds to an individuals who is of class "other",
-who does not have the BCR/ABL fusion mutation.
+is colored black and corresponds to an individual who is of class "other",
+does not have the BCR/ABL fusion mutation.
+Forty (40) patients contributed data to these displays. 
 
 ```{r doman,echo=FALSE}
 data(ALL)
@@ -147,7 +148,7 @@ trainInds = sample(1:ncol(aln),40)
 set.seed(1234);     rgg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], rpartI, trainInds, minsplit=4)
 set.seed(1234);     kgg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], knnI(k=1), trainInds)
 set.seed(1234);     ngg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], nnetI, trainInds, 
-   size=4, decay=.01, trace=FALSE)
+   size=4, decay=0.01, trace=FALSE)
 set.seed(1234);     sgg <- MLearn(class~., aln[c("DDR1", "DYRK4"),], svmI, trainInds)
 ```
 ```{r lk4, echo=FALSE,fig.height=6.5,fig.cap="Four learning algorithms for classifying leukemia subtype using expression of two genes.  Points are training data, region color at (x,y) is prediction of class for patient bearing expression values (x,y)."}
@@ -159,6 +160,7 @@ trz = exprs(aln)["DYRK4",trainInds]
 trcol = ifelse(aln$class[trainInds]=="fusion", "yellow", "black")
 points(trx, trz, col=trcol, pch=16)
 legend(8.5,7.1,pch=c(16,16), col=c("yellow", "black"), legend=c("fusion", "other"), bg="transparent")
+pal = c("#66C2A5", "#FC8D62", "#8DA0CB", "#E78AC3", "#A6D854", "#FFD92F", "#E5C494", "#B3B3B3")
 legend(6.0,5.6,fill=pal[1:2],legend=c("pred. fusion", "pred. other"), bg="transparent")
 planarPlot(kgg, aln[c("DDR1", "DYRK4"),], "class")
 points(trx, trz, col=trcol, pch=16)
@@ -182,8 +184,81 @@ values (x=DDR1, y=DYRK4) has the BCR/ABL fusion.  Thus, even
 though no data points are available at (x,y) = (9.0, 5.0),
 all the procedures predict that individuals with that
 expression configuration are BCR/ABL fusion-free.
-We will now look at the different learning procedures
+
+### Dimension reduction and feature engineering
+
+For concreteness, our examples deal with bivariate features (DDR1, DYRK4).
+Machine learning techniques have arisen for the purpose of dealing
+with many thousands of features measured on every sample.  Dimension
+reduction addresses the fact that the features themselves, measured
+in their own idiosyncratic scales, may be transformed and combined
+to help extract information of greater interest.
+
+### Concepts of generalization error and sample splitting
+
+The process that leads to coloring the plane in this example is
+an illustration of **generalization** in machine learning.  Specifically,
+even though our data consist of 40 pairs of measurements on DDR1 and DYRK4,
+we colored every point in the plane $\{(x,y)| 6.0 \leq x \leq 9.2 ~ \& ~ 4.9 \leq y \leq 7.2\}$,
+and, in fact, we can produce predictions far outside this limited set.
+The generalization consists in the assertion that any ALL patient with
+DDR1 value $x$ and DYRK4 value $y$ is predicted to have fusion or not
+depending on the color of the subregion of the plane at $(x,y)$.
+
+An important goal of machine learning is reduction in
+the rate of **generalization errors**, which occur
+when the class that we assign 
+differs from the actual class of the contributing patient.  We can estimate the
+generalization rate by using test data not used in the construction
+of the model underlying the learner.  Much of the success of modern
+machine-learning based AI is due to the availability of substantial
+quantities of data that are representative of data to be
+encountered in applications.  Learning procedures are iteratively
+tuned to improve generalization performance.
+
+Two concepts of **sample-splitting** are relevant to understanding
+how accuracies of machine learning procedures are estimated. 
+
+- **Test vs. train.**  The available data are split into
+a training set and a test set.  Machine learning is used with the training
+set, and the test set is used to estimate the rate of generalization error.
+- **Cross-validation.** Several realizations of split data are formed, with
+learning and generalization error rate estimation performed for
+each split.  A final error rate is computed by averaging over the
+series of splits.  Leave-one-out cross-validation consists of $N$
+steps for a dataset of size $N$.  The training set for step $i = 1, \ldots, N$
+omits the $i$th element.  The estimated generalization error rate 
+is the number of erroneous predictions for each left-out element divided by $N$.
+In k-fold cross validation, the data are partitioned into $k$ subsets,
+and the $i$th training event, $i = 1, \ldots, k$, uses the data excluding
+the $i$th subset.  Each subset will have approximately $N/k$ observations,
+and each training event uses $(k-1)N/k$ observations to make predictions
+for the left-out observations.  The generalization error rate is the
+average of error rates obtained over the $i$ training events.
+
+We will now look at a number of machine learning procedures
 in greater detail.
+
+### Linear discriminant analysis
+
+Our data on gene expression can be formalized as follows.  The patients
+with the fusion mutation form a class with mean expression vector $\mu_1$
+and covariance matrix $\Sigma_1$.  The patients without the mutation
+form the class with mean $\mu_2$ and covariance matrix $\Sigma_2$.
+We want to use the available expression data to produce predictions for new
+patients that are accurate.  In 1938 Fisher proposed a procedure based
+on the quantity $w = (\Sigma_1 + \Sigma_2)^{-1}(\mu_2 - \mu_1)$, which can
+be shown to maximize the ratio of the between-class variation to
+the within-class variation.  $w$ is a vector perpendicular to a plane
+that optimally separates the classes, and this plane is used to
+form prediction regions.  Justifications and extensions of this
+procedure are available in the [wikipedia entry](https://en.wikipedia.org/wiki/Linear_discriminant_analysis).
+
+For the two-class problem it is easy to use linear regression to
+produce the linear discriminant.  Classes are coded -1/1 and this
+coding is used as the response.  In exercises we will work through this procedure
+for coloring the plane as we do in Figure 1 for other procedures.
+
 
 ### rpart: recursive partitioning
 
@@ -222,8 +297,55 @@ A report on the trained tree is
 RObject(rgg)
 ```
 
+A significant generalization of recursive partitioning is the random forests
+algorithm, which computes large numbers of trees using randomly selected 
+subsets of the data and randomly selected subsets of features to use.
+The resampling process reduces the risk of tuning the procedure too
+finely to the data at hand.
+
 
 ### k-nearest neighbors
+
+$k$-nearest neighbors is well described in the 
+associated [wikipedia entry](https://en.wikipedia.org/wiki/K-nearest_neighbors_algorithm).
+We note the geometrically complex boundary of the prediction regions in Figure 1(b).
+
+### Feed-forward neural network
+
+Figure 3 gives a view of the model underlying Figure 1(c).  We specified
+that there are four "hidden units".  A "bias weight" is estimated for each
+of those, and for the prediction unit.  Weights are also assigned to the inputs.
+```{r lkpl,echo=FALSE,fig.cap="The layout of the neural network underlying Figure 1(c)."}
+library(edxAdvBioc)
+plot(RObject(ngg))
+```
+
+The numerical values of the weights are given in the summary report for `nnet`:
+```{r klkklklm,echo=FALSE}
+summary(RObject(ngg))
+```
+
+Modern neural network methods permit more complicated network architectures and use
+stronger methods of optimization to choose weights that minimize training
+errors and have good generalization properties.
+
+### Support vector machines
+
+Figure 1(d) illustrates a situation where representatives of one
+class live "in the middle" of the feature space, qualitatively
+surrounded by members of the other class.  This is a situation
+in which projection of the data into a higher dimensional space
+can help define a hyperplane that separates the classes.  An
+illustration of this process from the Wikipedia
+entry for the [Kernel method](https://en.wikipedia.org/wiki/Kernel_method)
+gives the basic idea.
+
+<img src="kern.png"/>
+
+In two dimensions, there is no linear function that will separate the
+red from blue points.  But transformation from $(x,y)$ to $(x,y,x^2+y^2)$
+are pushed to larger values in the third dimension.  A separating hyperplane
+can then be found using linear discriminant analysis.
 
 
 # An initial demonstration: Golub's 1999 leukemia study
@@ -282,8 +404,12 @@ acute lymphocytic leukemia.
 table(goltr$ALL.AML)
 ```
 
-Now, to simplify use of the `mlr3` package, we
-convert the assay data to a data.frame.
+Now, **to simplify use of the `mlr3` package**, we
+convert the assay data to a data.frame.  (In general
+we do not want to do this, and later on we will
+indicate how we can retain the SummarizedExperiment
+structure for use in mlr3-based learning pipelines.)
+
 We'll add "Class" at the final column
 to hold our class variable.
 
