@@ -124,7 +124,34 @@ appears in the legend?  Answer should be either 'PRAD' or 'ACC'.
 Question: Which axis records the depth of sequencing for the
 various experiments?  x or y?
 
+#### Visualizing categorical data
 
+#### Networks for linked data
+
+```{r lkgggg}
+suppressPackageStartupMessages({
+library(graph)
+library(SingleR)
+})
+mon = MonacoImmuneData()
+labs = unique(c(mon$label.main, mon$label.fine))
+myg = new("graphNEL", nodes=labs, edgemode="directed")
+myg2 = addEdge(mon$label.main, mon$label.fine, myg)
+myg2
+```
+Given a set of nodes, we want to extract a
+sliceGraph = function(g, n) {
+ a = lapply(n, function(x) adj(g, x)) 
+ nn = unique(c(n, unlist(a)))
+ subGraph(nn, g)
+}
+myg3 = sliceGraph(myg2, unique(mon$label.main)[1:4])
+library(igraph)
+ig = igraph.from.graphNEL(myg3) 
+plot(ig, vertex.size=0, label.cex=.05, label.dist=1)
+```
+
+### Multivariate visualization
 
 # Week 2: Interactive apps with Bioconductor and shiny
 

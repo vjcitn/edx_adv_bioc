@@ -194,6 +194,61 @@ reduction addresses the fact that the features themselves, measured
 in their own idiosyncratic scales, may be transformed and combined
 to help extract information of greater interest.
 
+We can use methods of matrix algebra to define some of the key
+approaches to dimension reduction and feature engineering of
+interest in genomic data science.  We use expression measures
+on $p$ genes, obtained for $N$ individuals, 
+to form the columns of a matrix $X$.  The singular
+value decomposition of a rank $p$ matrix $X$ with real-valued
+entries is the factorization $X = UDV^t$,
+where $U$ is $N \times p$ orthonormal, $D$ is diagonal $p \times p$ with positive diagonal elements,
+with $D_{ii}$ the vector of eigenvalues, and $V$ is orthonormal $p \times p$.
+The factors are organized so that the entries of $D$ are in increasing magnitude.
+The columns of $UD$ are called the principal components (PCs) of $X$. 
+They are uncorrelated, and the first principal component (PC1) is the
+linear combination of columns of $X$ possessing maximum variance
+among all possible linear combinations.  The second PC is the
+linear combination of columns of $X$ possessing maximum variance among
+all those linear combinations uncorrelated with PC1. Further PCs
+are obtained similarly.
+
+For concreteness, we consider $p=5$ genes from the ALL data.  First
+we present pairwise scatterplots.
+
+```{r domomo,echo=FALSE}
+inter = c("SRGN", "CD63", "NAMPT", "CSTA", "ZYX")
+myd = exprs(aln[inter,])
+myd=t(myd)
+pc = prcomp(myd)
+pairs(myd)
+```
+
+Clearly there are correlations between expression measures
+on several genes.  A principal components
+reduction of the multivariate expression patterns
+to two dimensions is shown in the next display, which
+is called a biplot.  The red arrows show how individual
+features contribute to the positioning of samples
+in the PC plane.
+
+```{r dobip2,echo=FALSE}
+biplot(pc, xlabs=ifelse(aln$class=="fusion", "+", "-"), cex=c(1,.6), expand=.9, choices=1:2)
+legend(5,17,pch=c("+", "-"), legend=c("fusion", "other"))
+```
+
+It is reasonable to say that we've used the data to "engineer"
+new features from the measured features by a) selecting features
+of interest, b) using a feature combination procedure (PCA), and
+c) presenting a selection of the new features (PC1 and PC2).
+
+Important applications of feature engineering related to principal component
+analysis include creation of vectors used to correct for population
+stratification in genome-wide association studies, and identification
+of batch effects in various types of genome-wide molecular assay.
+
+
+
+
 ### Concepts of generalization error and sample splitting
 
 The process that leads to coloring the plane in this example is
