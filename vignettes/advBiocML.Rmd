@@ -229,7 +229,7 @@ are obtained similarly.
 For concreteness, we consider $p=5$ genes from the ALL data.  First
 we present pairwise scatterplots.
 
-```{r domomo,echo=FALSE}
+```{r domomo,echo=FALSE,fig.cap="Pairwise scatterplots for five genes"}
 inter = c("SRGN", "CD63", "NAMPT", "CSTA", "ZYX")
 myd = exprs(aln[inter,])
 myd=t(myd)
@@ -249,7 +249,7 @@ indicate that the genes have positively correlated expression values;
 arrows pointing in opposite directions correspond to negatively
 correlated genes.
 
-```{r dobip2,echo=FALSE}
+```{r dobip2,echo=FALSE,fig.cap="Biplot for the PCA of the five gene extract for ALL"}
 biplot(pc, xlabs=ifelse(aln$class=="fusion", "+", "-"), cex=c(1,.6), expand=.9, choices=1:2)
 legend(5,17,pch=c("+", "-"), legend=c("fusion", "other"))
 ```
@@ -322,7 +322,7 @@ names(keggGet("hsa05202")[[1]])    # all fields for pathway
 keggGet("hsa05202")[[1]]$GENE[1:8] # a sample of GENE records
 ```
 Perusal of the gene list for this pathway leads to the
-following extract and display of ALL-relevant gene expression
+following extract and displays of ALL-relevant gene expression
 patterns.
 
 ```{r rename2,echo=FALSE}
@@ -331,13 +331,13 @@ suppressMessages({
 rownames(ALL) = make.names(mapIds(hgu95av2.db,keys=rownames(ALL), 
    column="SYMBOL", keytype="PROBEID"), unique=TRUE)
 })
+#biplot(prcomp(scale(emat)), 
+#   xlabs=ifelse(ALL$mol.biol=="BCR/ABL", "+", "-"), cex=c(1,.6))
 ```
 
 ```{r dobip3}
 emat = t(exprs(ALL[c("RUNX1", "CSF1R", "MPO", "CSF2", 
    "IL3", "RUNX1T1", "BCR", "ABL1"),]))
-biplot(prcomp(scale(emat)), 
-   xlabs=ifelse(ALL$mol.biol=="BCR/ABL", "+", "-"), cex=c(1,.6))
 ```
 
 Which statement is consistent with the pair of biplots shown here?
@@ -348,7 +348,7 @@ becomes negative in fusion-positive samples.
 - The correlation structure of gene expression does not change between the
 two groups of patients.
 
-```{r lk2b,echo=FALSE}
+```{r lk2b,echo=FALSE, fig.cap="Stratified biplots for ALL data.", fig.height=5}
 par(mfrow=c(1,2))
 biplot(prcomp(scale(emat[-isFus,])), 
    xlabs=ifelse(ALL[,-isFus]$mol.biol=="BCR/ABL", "+", "-"), cex=c(1,.6), expand=.9)
@@ -365,9 +365,9 @@ title("Fusion positive")
 
 ### Concepts of generalization error and sample splitting
 
-The process that leads to coloring the plane in this example is
+The process that leads to coloring the planes in Figure 1 
 an illustration of **generalization** in machine learning.  Specifically,
-even though our data consist of 40 pairs of measurements on DDR1 and DYRK4,
+even though our data there consisted of 40 pairs of measurements on DDR1 and DYRK4,
 we colored every point in the plane $\{(x,y)| 6.0 \leq x \leq 9.2 ~ \& ~ 4.9 \leq y \leq 7.2\}$,
 and, in fact, we can produce predictions far outside this limited set.
 The generalization consists in the assertion that any ALL patient with
@@ -512,9 +512,13 @@ gives the basic idea.
 <img src="kern.png"/>
 
 In two dimensions, there is no linear function that will separate the
-red from blue points.  But transformation from $(x,y)$ to $(x,y,x^2+y^2)$
-are pushed to larger values in the third dimension.  A separating hyperplane
-can then be found using linear discriminant analysis.
+red from blue points.  But in the transformation from $(x,y)$ to $(x,y,x^2+y^2)$,
+the red points
+are pushed to larger values in the third (vertical) dimension.  A separating hyperplane
+can then be found using linear discriminant analysis with the three variables.
+A distinctive feature of support vector machine algorithms is their emphasis
+on choosing the separating hyperplane that produces the largest gap (also called margin) between
+classes.
 
 
 # An initial demonstration: Golub's 1999 leukemia study
