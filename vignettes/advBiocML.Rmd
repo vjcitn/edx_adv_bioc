@@ -185,6 +185,20 @@ though no data points are available at (x,y) = (9.0, 5.0),
 all the procedures predict that individuals with that
 expression configuration are BCR/ABL fusion-free.
 
+#### Exercises
+
+1. Which plot exhibits the least misclassification of training samples?  a b c d
+1. Which statement is true?  Based on the training data: 
+- i) prediction regions for neural network and support vector machine have different geometric
+structures but perform identically with respect to misclassification
+- ii) the 1-nn procedure misclassifies a single "other" event
+- iii) the neural network and support vector machine procedures produced equal
+numbers of misclassifications of patients presenting with BCR/ABL fusion 
+- iv) the neural network and support vector machine procedures produced equal
+numbers of misclassifications of patients presenting without BCR/ABL fusion 
+1. True or false: All procedures agree that a patient presenting with DDR1 = 7.7 and
+DYRK4 = 6.0 should be classified as positive for BCR/ABL fusion.
+
 ### Dimension reduction and feature engineering
 
 For concreteness, our examples deal with bivariate features (DDR1, DYRK4).
@@ -229,7 +243,11 @@ reduction of the multivariate expression patterns
 to two dimensions is shown in the next display, which
 is called a biplot.  The red arrows show how individual
 features contribute to the positioning of samples
-in the PC plane.
+in the PC plane.  Arrows for genes that point in the same
+or approximately same direction
+indicate that the genes have positively correlated expression values;
+arrows pointing in opposite directions correspond to negatively
+correlated genes.
 
 ```{r dobip2,echo=FALSE}
 biplot(pc, xlabs=ifelse(aln$class=="fusion", "+", "-"), cex=c(1,.6), expand=.9, choices=1:2)
@@ -239,12 +257,108 @@ legend(5,17,pch=c("+", "-"), legend=c("fusion", "other"))
 It is reasonable to say that we've used the data to "engineer"
 new features from the measured features by a) selecting features
 of interest, b) using a feature combination procedure (PCA), and
-c) presenting a selection of the new features (PC1 and PC2).
+c) presenting a selection of the new features (PC1 and PC2; there are
+in this example 5 PCs to choose from).
 
 Important applications of feature engineering related to principal component
 analysis include creation of vectors used to correct for population
 stratification in genome-wide association studies, and identification
-of batch effects in various types of genome-wide molecular assay.
+of [batch effects](https://www.nature.com/articles/nrg2825.pdf) 
+in various types of genome-wide molecular assay.
+
+#### Exercises.
+
+1. Run the following code
+```
+inst_if_needed = function(p) {
+ if (!(p %in% rownames(installed.packages()))) {
+  if (p == "BiocManager") install.packages("BiocManager")
+  BiocManager::install(p)
+ }
+}
+inst_if_needed("BiocManager")
+inst_if_needed("ALL")
+inst_if_needed("hgu95av2.db")
+inst_if_needed("AnnotationDbi")
+library(ALL)
+library(hgu95av2.db)
+library(AnnotationDbi)
+data(ALL)
+rownames(ALL) = make.names(mapIds(hgu95av2.db,keys=rownames(ALL), 
+   column="SYMBOL", keytype="PROBEID"), unique=TRUE)
+```
+We compute the correlation between two genes, say SRGN and ZYX, in the ALL
+dataset via
+```
+an = as.numeric
+cor(an(exprs(ALL["SRGN",])), an(exprs(ALL["ZYX",])))
+```
+Over all available patients, what is the correlation between CD63 and ZYX?
+
+2. Run the following code.
+```
+isFus = which(ALL$mol.biol == "BCR/ABL")
+cor(an(exprs(ALL["SRGN",isFus])), an(exprs(ALL["ZYX",isFus])))
+```
+What is the value of the correlation coefficient relating SRGN expression
+to ZYX expression in patients **lacking** the fusion mutation?
+
+3. To obtain a correlation matrix, use
+```
+options(digits=3)
+cor(t(exprs(ALL[c("SRGN", "ZYX", "CD63"),])))
+```
+Compare correlation matrices obtained for patients with BCR/ABL
+fusion to those obtained for patients without the fusion.  Which
+pair of genes exhibits the greatest difference?
+
+4. We can use KEGGREST to obtain information related to ALL.
+```
+inst_if_needed("KEGGREST")
+library(KEGGREST)
+keggFind("disease", "leukemia")[1]  # there are several hits
+keggGet("ds:H00001")[[1]]$PATHWAY  # the pathway id
+names(keggGet("hsa05202")[[1]])    # all fields for pathway
+keggGet("hsa05202")[[1]]$GENE[1:8] # a sample of GENE records
+```
+Perusal of the gene list for this pathway leads to the
+following extract and display of ALL-relevant gene expression
+patterns.
+
+```{r rename2,echo=FALSE}
+data(ALL)
+suppressMessages({
+rownames(ALL) = make.names(mapIds(hgu95av2.db,keys=rownames(ALL), 
+   column="SYMBOL", keytype="PROBEID"), unique=TRUE)
+})
+```
+
+```{r dobip3}
+emat = t(exprs(ALL[c("RUNX1", "CSF1R", "MPO", "CSF2", 
+   "IL3", "RUNX1T1", "BCR", "ABL1"),]))
+biplot(prcomp(scale(emat)), 
+   xlabs=ifelse(ALL$mol.biol=="BCR/ABL", "+", "-"), cex=c(1,.6))
+```
+
+Which statement is consistent with the pair of biplots shown here?
+
+- The correlation between BCR and ABL1 is stronger in fusion-negative samples.
+- The correlation between MPO and CSF1R is positive in fusion-negative samples and
+becomes negative in fusion-positive samples.
+- The correlation structure of gene expression does not change between the
+two groups of patients.
+
+```{r lk2b,echo=FALSE}
+par(mfrow=c(1,2))
+biplot(prcomp(scale(emat[-isFus,])), 
+   xlabs=ifelse(ALL[,-isFus]$mol.biol=="BCR/ABL", "+", "-"), cex=c(1,.6), expand=.9)
+title("Fusion negative")
+biplot(prcomp(scale(emat[isFus,])), 
+   xlabs=ifelse(ALL[,isFus]$mol.biol=="BCR/ABL", "+", "-"), cex=c(1,.6))
+title("Fusion positive")
+```
+
+
 
 
 
