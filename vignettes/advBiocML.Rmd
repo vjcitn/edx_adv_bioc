@@ -28,7 +28,7 @@ options(digits=3)
 inst_if_needed = function(p, reponame=p) {
  if (!(p %in% rownames(installed.packages()))) {
   if (p == "BiocManager") install.packages("BiocManager")
-  BiocManager::install(reponame, ask=FALSE)
+  BiocManager::install(reponame, ask=FALSE, update=FALSE)
  }
 }
 })
