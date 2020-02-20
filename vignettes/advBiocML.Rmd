@@ -25,6 +25,12 @@ library(MLInterfaces)
 library(ALL)
 library(hgu95av2.db)
 options(digits=3)
+inst_if_needed = function(p, reponame=p) {
+ if (!(p %in% rownames(installed.packages()))) {
+  if (p == "BiocManager") install.packages("BiocManager")
+  BiocManager::install(reponame, ask=FALSE)
+ }
+}
 })
 })
 ```
@@ -133,8 +139,19 @@ on two genes, DDR1 and DYRK4, were obtained and plotted in
 the plane, colored according to the class of the donor.
 For example, the point (DDR1 $\approx$ 8.55, DYRK4 $\approx$ 5.0)
 is colored black and corresponds to an individual who is of class "other",
-does not have the BCR/ABL fusion mutation.
-Forty (40) patients contributed data to these displays. 
+and who does not have the BCR/ABL fusion mutation.
+These displays
+are based on data from 40 randomly selected patients.
+
+We have labeled the plots with names that may be uninterpretable
+to you now.  For the moment, it is sufficient to view these
+plots as serving a diagnostic purpose.  Given values for DDR1
+and DYRK4 from a patient, plot the point corresponding to these
+values on the panel.  If the point is in a green region,
+declare BCR/ABL fusion to be present; if the point is in an orange
+region, declare the patient to be free of BCR/ABL fusion.
+The four panels represent different procedures for coloring
+the plane using the same dataset.
 
 ```{r doman,echo=FALSE}
 data(ALL)
@@ -179,16 +196,16 @@ data points, but the coloring of the background varies from
 plot to plot.  Each (x,y) point in the plane is colored peach if the
 learning method predicts that individuals with x as their
 DDR1 expression value, and y as their DYRK4 value, are of the
-"other class", and colored teal if the individual with expression
+"other class".  The point (x,y) is colored light green if the individual with expression
 values (x=DDR1, y=DYRK4) has the BCR/ABL fusion.  Thus, even
 though no data points are available at (x,y) = (9.0, 5.0),
 all the procedures predict that individuals with that
 expression configuration are BCR/ABL fusion-free.
 
-#### Exercises
+### Exercises on comparing two-class, two-feature prediction applications
 
-1. Which plot exhibits the least misclassification of training samples?  a b c d
-1. Which statement is true?  Based on the training data: 
+1. Which plot in Figure 1 exhibits the smallest number of training sample misclassification?  a b c d
+2. Which statement is true?  Based on the training data: 
 - i) prediction regions for neural network and support vector machine have different geometric
 structures but perform identically with respect to misclassification
 - ii) the 1-nn procedure misclassifies a single "other" event
@@ -196,7 +213,7 @@ structures but perform identically with respect to misclassification
 numbers of misclassifications of patients presenting with BCR/ABL fusion 
 - iv) the neural network and support vector machine procedures produced equal
 numbers of misclassifications of patients presenting without BCR/ABL fusion 
-1. True or false: All procedures agree that a patient presenting with DDR1 = 7.7 and
+3. True or false: All procedures agree that a patient presenting with DDR1 = 7.7 and
 DYRK4 = 6.0 should be classified as positive for BCR/ABL fusion.
 
 ### Dimension reduction and feature engineering
@@ -266,20 +283,21 @@ stratification in genome-wide association studies, and identification
 of [batch effects](https://www.nature.com/articles/nrg2825.pdf) 
 in various types of genome-wide molecular assay.
 
-#### Exercises.
+### Exercises on correlation and dimension reduction for multivariate data
 
 1. Run the following code
 ```
-inst_if_needed = function(p) {
+inst_if_needed = function(p, reponame=p) {
  if (!(p %in% rownames(installed.packages()))) {
   if (p == "BiocManager") install.packages("BiocManager")
-  BiocManager::install(p)
+  BiocManager::install(reponame, ask=FALSE)
  }
 }
 inst_if_needed("BiocManager")
 inst_if_needed("ALL")
 inst_if_needed("hgu95av2.db")
 inst_if_needed("AnnotationDbi")
+inst_if_needed("edxAdvBioc", "vjcitn/edx_adv_bioc")
 library(ALL)
 library(hgu95av2.db)
 library(AnnotationDbi)
@@ -312,7 +330,11 @@ Compare correlation matrices obtained for patients with BCR/ABL
 fusion to those obtained for patients without the fusion.  Which
 pair of genes exhibits the greatest difference?
 
-4. We can use KEGGREST to obtain information related to ALL.
+4. We can use `r Biocpkg("KEGGREST")` to obtain information related to ALL.  KEGG
+stands for the Kyoto Encyclopedia of Genes and Genomes, and KEGGREST
+provides functions that interrogate the encyclopedia.  We will find
+the code for one subtype of ALL, will then find a code for a leukemia-related
+pathway, and then obtain a set of genes annotated to the pathway.
 ```
 inst_if_needed("KEGGREST")
 library(KEGGREST)
@@ -350,6 +372,7 @@ two groups of patients.
 
 ```{r lk2b,echo=FALSE, fig.cap="Stratified biplots for ALL data.", fig.height=5}
 par(mfrow=c(1,2))
+isFus = which(ALL$mol.biol == "BCR/ABL")
 biplot(prcomp(scale(emat[-isFus,])), 
    xlabs=ifelse(ALL[,-isFus]$mol.biol=="BCR/ABL", "+", "-"), cex=c(1,.6), expand=.9)
 title("Fusion negative")
@@ -357,10 +380,6 @@ biplot(prcomp(scale(emat[isFus,])),
    xlabs=ifelse(ALL[,isFus]$mol.biol=="BCR/ABL", "+", "-"), cex=c(1,.6))
 title("Fusion positive")
 ```
-
-
-
-
 
 
 ### Concepts of generalization error and sample splitting
@@ -455,7 +474,7 @@ text(rgg@RObject)
 
 We read this plot by "going left" when the condition at a branch point is met.
 We can use this rule to understand the left-most leaf of the tree (fusion) and
-the teal-colored region at the top center of the rpart panel.  We start at the top
+the light green-colored region at the top center of the rpart panel.  We start at the top
 with DDR1 $\geq$ 7.287, move left and find a new branch wit DDR $<$ 7.987.
 Continuing to the left, we are now in the interval 7.287 $<$ DDR $<$ 7.287,
 and if we continue to the left and assert DYRK $\geq$ 6.461, we move to the
@@ -469,7 +488,7 @@ RObject(rgg)
 A significant generalization of recursive partitioning is the random forests
 algorithm, which computes large numbers of trees using randomly selected 
 subsets of the data and randomly selected subsets of features to use.
-The resampling process reduces the risk of tuning the procedure too
+The resampling process reduces the risk of tailoring the predictions too
 finely to the data at hand.
 
 
@@ -485,7 +504,8 @@ Figure 3 gives a view of the model underlying Figure 1(c).  We specified
 that there are four "hidden units".  A "bias weight" is estimated for each
 of those, and for the prediction unit.  Weights are also assigned to the inputs.
 ```{r lkpl,echo=FALSE,fig.cap="The layout of the neural network underlying Figure 1(c)."}
-library(edxAdvBioc)
+inst_if_needed("edxAdvBioc", "vjcitn/edx_adv_bioc")
+library(edxAdvBioc) # does not match repo name but OK
 plot(RObject(ngg))
 ```
 
@@ -520,8 +540,166 @@ A distinctive feature of support vector machine algorithms is their emphasis
 on choosing the separating hyperplane that produces the largest gap (also called margin) between
 classes.
 
+### Exercises on linear discriminant analysis (LDA)
 
-# An initial demonstration: Golub's 1999 leukemia study
+We'll use a balanced subset of the ALL data here.
+```{r dolda1}
+kpf = c(39L, 10L, 83L, 23L, 30L, 20L, 51L, 22L, 35L, 11L, 78L, 87L, 
+15L, 43L, 94L, 77L, 32L, 58L, 19L, 85L)
+kpn = c(108L, 55L, 37L, 52L, 119L, 113L, 124L, 123L, 106L, 12L, 122L, 
+82L, 24L, 28L, 116L, 89L, 84L, 46L, 90L, 114L)
+ALL.l = ALL[, sort(c(kpf,kpn))]
+ALL.l$class = ifelse(ALL.l$mol.biol == "BCR/ABL", "fusion", "other")
+```
+
+There are direct implementations of LDA but for the two class
+problem with equal class numbers it is easy to 
+produce the standard linear discriminant using linear regression.
+
+Here are the class labels.
+```{r dolda2}
+ncl = ifelse(ALL.l$class == "fusion", 1, -1) 
+table(ncl)
+```
+Now we set up a data.frame with the expression data, and
+a fine grid `nd` to color the plane with our predictions.
+```{r doldladl}
+dd = data.frame(ddr1=as.numeric(exprs(ALL.l["DDR1",])), 
+  dyrk4=as.numeric(exprs(ALL.l["DYRK4",])), ncl=ncl)
+nd = expand.grid(i=1, ddr1=seq(6,9.1,.01),  # for plotting
+  dyrk4=seq(4.9, 7.2,.01))
+```
+The fitted regression:
+```{r doreere}
+litm = lm(ncl~., data=dd)
+summary(litm)
+```
+The model we've fit has the form $$L = a + bx + cy + e$$ where $L$
+is our class label coded to $(-1,1)$, $x$ is our DDR1 measure, $y$ is
+our DYRK4 measure, and $e$ is our mean zero residual.  The linear
+discriminant is the line in the $(x,y)$ plane where the fitted
+value of $L$ changes sign.
+
+Here is the display of the data in the plane colored according
+to the LDA predictions, using the condition `prs>0` below.
+```{r dochs}
+prs = predict(litm, nd)
+plot(dyrk4~ddr1, data=nd, col=c("#66C2A5", "#FC8D62")[factor(prs>0)], pch=19)
+points(dd$ddr1, dd$dyrk4, col=factor(ncl), pch=19)
+```
+
+1. Our regression gives estimates for $(a, b, c)$ in the equation for $L$
+above, and we will use $$0 = -5.6102 + 0.7868\cdot\mbox{DDR1} -0.0372\cdot\mbox{DYRK4}$$ as
+our definition of where the fitted value of $L$ changes sign.  If we
+rewrite this equation so that it has the form $\mbox{DYRK4} = m\cdot \mbox{DDR1} + s$,
+what is the value of $m$?
+1. What is the value of $s$?
+1. It is fairly easy to see that the green region could be extended by
+tilting the boundary a little to "rescue" two black points, and thus
+reduce the overall number of misclassifications.  Add the line
+$y = -54.75 + 8.11 x$ to the display just computed to demonstrate this.  
+What function should be used to add the line?
+
+Conclude
+that LDA does not necessarily find a linear boundary to **minimize misclassification
+errors**.  The actual objective of LDA is to find the
+equation of a plane that is perpendicular to the vector along which the
+distance between the means of the two groups is maximized, taking into account
+the variation within these groups.
+
+### Exercises on estimating generalization error
+
+To reduce the amount of code we need to write, we use some
+functions from the `r Biocpkg("MLInterfaces")` package without
+going into details.
+
+The tree that we worked with in Figures 1 and 5 was computed on
+a training set of 40 observations as follows.
+```{r dodoadad}
+library(MLInterfaces)
+trainInds = c(13L, 117L, 72L, 79L, 17L, 71L, 96L, 47L, 60L, 57L, 67L, 78L, 
+50L, 113L, 87L, 29L, 27L, 1L, 107L, 14L, 120L, 30L, 76L, 62L, 
+105L, 21L, 39L, 25L, 61L, 49L, 69L, 75L, 58L, 48L, 42L, 109L, 
+95L, 59L, 98L, 3L)
+ALL$class = ifelse(ALL$mol.biol == "BCR/ABL", "fusion", "other")
+rgg <- MLearn(class~., ALL[c("DDR1", "DYRK4"),], rpartI, trainInds, minsplit=4)
+RObject(rgg)
+```
+We compute the confusion matrix for the 88 left-out samples.  This
+is just the cross-tabulation of the predicted class against the known class.
+```{r lkconfu}
+confuMat(rgg)
+```
+Exercises.
+
+1. What is the test-set misclassification rate estimate?
+2. We introduce a new set of features to try.
+```{r donewset}
+newg = c("RUNX1", "CSF1R", "MPO", "CSF2", "IL3", "RUNX1T1", "BCR", "ABL1")
+rgg2 <- MLearn(class~., ALL[newg,], rpartI, trainInds, minsplit=4)
+confuMat(rgg2)
+```
+What is the new misclassification rate estimate?
+
+3. Let's reduce the depth of the tree by increasing the `minsplit` parameter.
+```{r donewset2}
+rgg3 <- MLearn(class~., ALL[newg,], rpartI, trainInds, minsplit=5)
+RObject(rgg3)
+confuMat(rgg3)
+rgg4 <- MLearn(class~., ALL[newg,], rpartI, trainInds, minsplit=7)
+RObject(rgg4)
+confuMat(rgg4)
+```
+We see that the test-set based misclassification rate decreases as we
+simplify the tree.  But for a different choice of training/test split,
+we might not see such a nice sequence.  
+
+Let's do some programming to produce a cross-validated estimate of
+the misclassification rate for the two settings of minsplit. We'll do
+five-fold cross validation, training on 4/5 of the data and testing
+on the remaining fifth.  This can be done five times.  The splits
+will be formed using chunks of a random permutation of indices.
+```{r asdasda}
+inst_if_needed("BBmisc") # for chunk
+library(BBmisc)
+set.seed(1234)
+basic = sample(1:128, size=128) # permute the simple indices
+ch = chunk(basic, n.chunks=5)   # chop into five groups
+confus_5 = vector("list", 5)    # prepare for confusion matrices
+confus_7 = vector("list", 5)
+for (i in 1:5) {
+ trainInds = setdiff(basic, ch[[i]])
+ confus_5[[i]] = confuMat(MLearn(class~., ALL[newg,], rpartI, trainInds, minsplit=5))
+ confus_7[[i]] = confuMat(MLearn(class~., ALL[newg,], rpartI, trainInds, minsplit=7))
+}
+mcr = function(x) 1-(sum(diag(x))/sum(x))
+mcr.5 = mean(sapply(confus_5, mcr))
+print(mcr.5)
+```
+What is the average misclassification rate for the procedure with minsplit set to 7? 
+
+4. Repeat the cross-validation loop substituting nnetI for rpartI, and comparing
+rates for networks of sizes 4 and 3, with decay parameter set to 0.01 for both sizes.
+Your code should look like
+```
+confus_4 = vector("list", 5)    # prepare for confusion matrices
+confus_3 = vector("list", 5)
+set.seed(1234) # because nnet may have a random start
+for (i in 1:5) {
+ trainInds = setdiff(basic, ch[[i]])
+ confus_4[[i]] = confuMat(MLearn(class~., ALL[newg,], nnetI, trainInds, size=4, decay=.01, maxit=1000))
+ confus_3[[i]] = confuMat(MLearn(class~., ALL[newg,], nnetI, trainInds, size=3, decay=.01, maxit=1000))
+}
+mean(sapply(confus_4, mcr))
+mean(sapply(confus_3, mcr))
+```
+Are the results better for the smaller model?
+
+
+
+
+
+# mlr3 applied to Golub's 1999 leukemia study
 
 Our objective here is to use a machine learning framework
 for R with gene expression data assembled in leukemia studies.
@@ -614,7 +792,7 @@ ALL vs AML with all the features.
 library(mlr3)
 library(mlr3learners)
 t1 = TaskClassif$new("myl1", goltrdf, "Class")
-t1
+class(t1)
 ```
 
 This has all available features.  We will introduce a filtering step
@@ -678,7 +856,7 @@ be recorded, using the 'impurity' metric.
 
 ```{r dorange}
 t1f = TaskClassif$new("myrf", goltrdf[, c(kp, "Class")], "Class")
-t1f
+class(t1f)
 l1 = lrn("classif.ranger", importance="impurity")
 set.seed(1234) # for random forests
 l1$train(t1f)
@@ -703,7 +881,7 @@ The probe IDs for the top 20 genes as recorded in
 the random forests application are:
 ```{r wkip}
 library(ranger) # for importance()
-top20 = names(tail(sort(importance(l1$model)),20))
+top20 = names(tail(sort(ranger::importance(l1$model)),20))
 top20
 ```
 There's a little glitch in the name processing.
@@ -810,6 +988,7 @@ summary(cc)
 # Simplifying translation from SE to mlr3
 
 ```{r doclust}
+inst_if_needed("edxAdvBioc", "vjcitn/edx_adv_bioc")
 library(edxAdvBioc)
 fall_golub = se_to_filtered_task(taskid='f1', se=goltr, "ALL.AML")
 fall_tcga = se_to_filtered_task(taskid='f2', se=e1, tmaker=mlr3cluster::TaskClust)
