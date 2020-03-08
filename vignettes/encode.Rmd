@@ -47,10 +47,10 @@ that we retrieve using `r Biocpkg("AnnotationHub")`.  We use
 the "full" table because it provides links to raw and processed data files
 curated in the cloud by the ENCODE project.  
 
-## Population of/loading from local metadata cache 
+## Using a local metadata cache 
 
 This table is over 90MB in
-size, so it takes a few moments to download or load from cache.
+size, so it takes a few moments to download from cloud or load from cache.
 
 ```{r doen1,cache=TRUE}
 library(AnnotationHub)
@@ -82,21 +82,21 @@ tail(sort(table(hfmt$antibody_target)))
 
 We'll manage the ChIP-seq data references with a
 `r Biocpkg("GenomicFiles")` object.
-For convenience, we'll focus on BED files with
-narrowPeak content.
+For convenience, we'll focus on bigWig files.
 
 ```{r dolim}
-hfmtbn = hfmt[hfmt$file_type == "bed narrowPeak",]
-dim(hfmtbn)
-table(hfmtbn$output_type)
+hfmtbw = hfmt[hfmt$file_type == "bigWig",]
+dim(hfmtbw)
+table(hfmtbw$output_type)
 ```
+<!--
 Note that IDR denotes "irreproducible discovery rate" a measure of
 confidence [developed within ENCODE](https://genome.ucsc.edu/ENCODE/qualityMetrics.html).
-
+-->
 ```{r dogf}
 library(GenomicFiles)
-gf1 = GenomicFiles(files=hfmtbn$s3_uri)
-colData(gf1) = as(as.data.frame(hfmtbn), "DataFrame")
+gf1 = GenomicFiles(files=hfmtbw$cloud_metadata.url)
+colData(gf1) = as(as.data.frame(hfmtbw), "DataFrame")
 table(gf1$assembly)
 ```
 This last table is very important, indicating that we are managing information
@@ -108,6 +108,8 @@ We'll focus on data collected with GRCh38 coordinates.
 ```{r limg}
 gf1 = gf1[, which(gf1$assembly == "GRCh38")]
 gf1
+gf = GenomicFiles(files=hfmtbw$cloud_metadata.url)
+colData(gf) = as(as.data.frame(hfmtbw), "DataFrame")
 ```
 
 ## Anatomic sources of samples
@@ -135,4 +137,84 @@ tails = gsub(".*_", "", nn)
 tailss = gsub("/", "", tails)
 tt = paste0("EFO:", tailss)
 onto_plot2(ee, tt, cex=.6)
+```
+
+## Targeted sketching of peak scores
+
+We'll focus on the transcription factor CREB1.
+There are a modest number of samples in different
+cell lines.  Some are treated with ethanol.
+```{r lktr}
+gf1_creb1 = gf1[, which(gf1$target == "CREB1")]
+table(gf1_creb1$treatment, gf1_creb1$biosample_name, exclude=NULL)
+```
+We'll focus on samples with type `signal p-value`.
+```{r lkopt}
+table(gf1_creb1$output_type, gf1_creb1$biosample_name, exclude=NULL)
+gf1_creb1_use = gf1_creb1[, 
+   which(gf1_creb1$output_type == "signal p-value")]
+```
+We will import a megabase of bigWig content from the
+files selected in this way, using `reduceByFile`:
+```{r dored,cache=TRUE}
+myr = GRanges("chr17", IRanges(66e6,67e6))
+genome(myr) = "GRCh38"
+rowRanges(gf1_creb1_use) = myr
+sels = reduceByFile(gf1_creb1_use, MAP=function(range, file, ...) {
+    sel = BigWigSelection(range)
+    import.bw(file, selection=sel, genome=genome(myr)[1])
+})
+```
+Here is our targeted sketch:
+```{r lkres1}
+lk1 = sels[[1]][[1]]
+lk2 = sels[[2]][[1]]
+plot(start(lk1)+.5*(width(lk1)), lk1$score, pch=19,
+ xlab="midpoint of scored interval, chr17", ylab="-log10 CREB1 signal p-value",
+ cex=.5, col=lava::Col("black", alpha=.3))
+points(start(lk2)+.5*width(lk2), lk2$score, pch=19, 
+ col=lava::Col("blue", alpha=.3), cex=.5)
+```
+
+## Exercises
+
+### Retention of metadata
+
+The following function, annotated in roxygen format,
+gathers the task of filtering bigWig data of a specific
+output type and target in a given genomic interval.
+
+```{r doimpsource}
+#' import bigwig in an interval, given GenomicFiles for ENCODE bigWig files
+#' @param gf GenomicFiles instance
+#' @param target character(1) ChIP-seq target
+#' @param output_type character(1) defaults to "signal p-value"
+#' @param selection GRanges instance, one range allowed
+#' @export
+ import_enc_bw = function(gf, target="CREB1", output_type="signal p-value",
+   selection= GRanges("chr17", IRanges(66e6,67e6), genome="GRCh38")) {
+  stopifnot(length(selection)==1)
+  gf_use = gf[, which(gf$target == target)]
+  gf_use = gf_use[, 
+     which(gf_use$output_type == "signal p-value")]
+  rowRanges(gf_use) = selection
+  ans = reduceByFile(gf_use, MAP=function(range, file, ...) {
+      sel = BigWigSelection(range)
+      import.bw(file, selection=sel, genome=genome(myr)[1])
+  })
+  ans = GRangesList(unlist(ans, recursive=FALSE))
+  mcols(ans) = colData(gf_use)
+  ans
+}
+```
+We can generate our sketch data with a simple call,
+assuming the construction of `gf1` is accomplished as
+above.
+```{r redosk,cache=TRUE}
+skd = import_enc_bw(gf1)
+```
+A virtue of this approach is that the cell types (and
+all metadata) are bound to the scores:
+```{r lkskmet}
+table(mcols(skd)$biosample_name)
 ```
