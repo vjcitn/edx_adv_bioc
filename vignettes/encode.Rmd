@@ -38,7 +38,7 @@ are used to analyze gene structure and
 regulation.  In this section we will illustrate ways of using Bioconductor
 to acquire and interpret ENCODE resources.
 
-# Built-in access through ENCODExplorer
+# Built-in surveys through ENCODExplorer metadata
 
 We can use AnnotationHub to get information on ENCODE results that have
 been curated for direct use with Bioconductor.  The
@@ -104,3 +104,35 @@ for which two genomic coordinate systems are in play.  In the introduction
 to Bioconductor, it is shown
 how `liftOver` can be used to translate between coordinate systems if needed.
 
+We'll focus on data collected with GRCh38 coordinates.
+```{r limg}
+gf1 = gf1[, which(gf1$assembly == "GRCh38")]
+gf1
+```
+
+## Anatomic sources of samples
+
+We'll define a helper function to report on discrete properties
+of samples.  This gives us clues on the contents of listings of biosample type and
+associated ontology labels.
+```{r lktls}
+tls = function(x) tail(sort(table(x)))
+tls(gf1$biosample_name)
+tls(gf1$biosample_ontology)
+```
+
+The use of ontology labeling helps us to organize information on samples.
+Bioconductor's `r Biocpkg("ontoProc")` package can be used to
+develop a simple hierarchical display.  We focus on the Experimental Factor
+Ontology (EFO) tags, and take a very small subset of tags in use to
+obtain a tractable display in this document.
+```{r lkontopl}
+library(ontoProc)
+ee = getEFOOnto()
+tail(sort(table(hfmt$biosample_ontology)),12) -> ioi
+nn = names(ioi[grep("EFO", names(ioi))])
+tails = gsub(".*_", "", nn)
+tailss = gsub("/", "", tails)
+tt = paste0("EFO:", tailss)
+onto_plot2(ee, tt, cex=.6)
+```
