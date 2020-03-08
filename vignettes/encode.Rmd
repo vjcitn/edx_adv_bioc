@@ -1,0 +1,106 @@
+---
+title: "Advanced Bioconductor: working with ENCODE"
+author: "Vincent J. Carey, stvjc at channing.harvard.edu"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteIndexEntry{Working with ENCODE}
+  %\VignetteEncoding{UTF-8}
+output:
+  BiocStyle::html_document:
+    highlight: pygments
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_depth: 3
+---
+
+```{r setup,echo=FALSE,results="hide"}
+suppressMessages({
+suppressPackageStartupMessages({
+library(AnnotationHub)
+library(rtracklayer)
+library(DT)
+library(tibble)
+library(BiocStyle)
+})
+})
+```
+
+# Introduction
+
+The Encyclopedia of DNA Elements (ENCODE) is a collection of
+experimental results and computing resources devoted to elaboration
+of mechanisms of gene regulation.  The project [main page](https://www.encodeproject.org/)
+is a good overview of its scope, involving four main organisms (human, mouse, worm
+and fly) and dozens of biotechnological innovations that
+are used to analyze gene structure and
+regulation.  In this section we will illustrate ways of using Bioconductor
+to acquire and interpret ENCODE resources.
+
+# Built-in access through ENCODExplorer
+
+We can use AnnotationHub to get information on ENCODE results that have
+been curated for direct use with Bioconductor.  The
+`r Biocpkg("ENCODExplorer")` package provides a metadata table,
+that we retrieve using `r Biocpkg("AnnotationHub")`.  We use
+the "full" table because it provides links to raw and processed data files
+curated in the cloud by the ENCODE project.  
+
+## Population of/loading from local metadata cache 
+
+This table is over 90MB in
+size, so it takes a few moments to download or load from cache.
+
+```{r doen1,cache=TRUE}
+library(AnnotationHub)
+ah = AnnotationHub()
+query(ah, "ENCODExplorerData")
+fm = ah[["AH75132"]]
+dim(fm)
+table(fm$organism)
+```
+
+## Filtering the metadata table
+
+We focus on human samples, and limit to ChIP-seq
+experiments for now.
+```{r doen2, cache=TRUE}
+# filter
+hfm = fm[which(fm$organism == "Homo sapiens"),]
+tail(sort(table(hfm$assay)))
+hfmt = hfm[which(hfm$assay == "TF ChIP-seq"),]
+```
+
+The proteins for which binding patterns can be
+assessed are in the `antibody_target` field:
+```{r lkst}
+tail(sort(table(hfmt$antibody_target)))
+```
+
+## Managing the information with a GenomicFiles instance 
+
+We'll manage the ChIP-seq data references with a
+`r Biocpkg("GenomicFiles")` object.
+For convenience, we'll focus on BED files with
+narrowPeak content.
+
+```{r dolim}
+hfmtbn = hfmt[hfmt$file_type == "bed narrowPeak",]
+dim(hfmtbn)
+table(hfmtbn$output_type)
+```
+Note that IDR denotes "irreproducible discovery rate" a measure of
+confidence [developed within ENCODE](https://genome.ucsc.edu/ENCODE/qualityMetrics.html).
+
+```{r dogf}
+library(GenomicFiles)
+gf1 = GenomicFiles(files=hfmtbn$s3_uri)
+colData(gf1) = as(as.data.frame(hfmtbn), "DataFrame")
+table(gf1$assembly)
+```
+This last table is very important, indicating that we are managing information
+for which two genomic coordinate systems are in play.  In the introduction
+to Bioconductor, it is shown
+how `liftOver` can be used to translate between coordinate systems if needed.
+
