@@ -23,6 +23,7 @@ library(rtracklayer)
 library(DT)
 library(tibble)
 library(BiocStyle)
+library(lubridate)
 })
 })
 ```
@@ -37,6 +38,24 @@ and fly) and dozens of biotechnological innovations that
 are used to analyze gene structure and
 regulation.  In this section we will illustrate ways of using Bioconductor
 to acquire and interpret ENCODE resources.
+
+Main aims for learners using this document:
+
+- You will develop an understanding the scope of the ENCODE project, particularly in terms of the
+variety of assays and experimental resources.
+- You will be able to explore Bioconductor metadata about the project, surveying
+organism and cell identities, assay types, specific design objectives and assay
+outputs.
+- You will become acquainted with the use of formal ontology to organize information
+about relationships between cell types and anatomic regions, as employed
+in ENCODE metadata.
+- You will learn how to use the `r Biocpkg("GenomicFiles")` package to
+manage information about terabytes of data resident in public cloud storage.  Specifically
+the `reduceByFile` method operates on `GenomicFiles` instances to make targeted
+selections from indexed cloud-resident files, avoiding tedious downloading
+of large files.
+- You will see how to "drill through" complex metadata to expose key aspects
+of informally annotated CRISPR interference experiments.
 
 # Built-in surveys through ENCODExplorer metadata
 
@@ -138,6 +157,9 @@ tailss = gsub("/", "", tails)
 tt = paste0("EFO:", tailss)
 onto_plot2(ee, tt, cex=.6)
 ```
+It is noteworthy that in this display HEK293 is not linked to "Homo sapiens cell line".  This
+can be confirmed by visiting the [ontology lookup service](https://www.ebi.ac.uk/ols/ontologies/efo/terms?short_form=EFO_0001182).  It is not uncommon to find gaps in curated data resources.  Whether there is a justification
+for this particular omission is unclear. 
 
 ## Targeted sketching of peak scores
 
@@ -180,7 +202,7 @@ points(start(lk2)+.5*width(lk2), lk2$score, pch=19,
 
 ### Basic descriptive statistics
 
-1. `gf1` represents data on `r ncol(gf1)` ChIP-seq experiments in
+1. `gf1` represents data on `r ncol(gf1)` ChIP-seq experiments for organism 'Homo sapiens' in
 bigWig format.  Use
 the `cloud_metadata.file_size` `colData` component to state a) the median file size, and b) 
 the total number of gigabytes of cloud-resident data to which `gf1` mediates access.
@@ -198,6 +220,32 @@ to human samples, what is the most common `biosample_name`?
  as_tibble(fm) %>% dplyr::filter(assay == "ATAC-seq" & organism=="Homo sapiens") %>% 
     dplyr::select(biosample_name) %>% group_by(biosample_name) %>%
     summarise(n=dplyr::n()) %>% arrange(desc(n))
+```
+
+5. _Chronology and scope of experimental agenda_.  We can use the `date_created` field to
+document submission of assays of diverse types.  We'll use the `hfm` table for this.
+```{r lktime,cache=TRUE,fig.width=10}
+newt = as_tibble(hfm) %>% 
+  dplyr::select(assay, date_created) %>% 
+  mutate(ldate=lubridate::as_date(date_created)) 
+par(las=2, mar=c(12,4,2,2))
+ameds = sapply(split(newt$ldate, newt$assay), median)
+with(newt, boxplot(split(ldate, assay)[order(ameds)]))
+```
+How many assays of type `long read RNA-seq` are present?
+
+6. RNA-seq preceded by CRISPR interference.
+We use the `dataset_description` to find out about
+genes knocked down in CRISPRi RNA-seq experiments.
+The language in that field is repetitious, and we massage a bit
+to get the name of the gene that was putatively knocked down.
+```{r lkcrs}
+hfm %>% dplyr::filter(assay == "CRISPRi RNA-seq" & file_format=="tsv") %>% 
+  mutate(targ = gsub(
+    "RNA-seq on K562 cells treated by CRISPR interference targeting (..*).", 
+     "\\1", dataset_description)) %>%
+  dplyr::select(investigated_as, targ) %>% 
+  group_by(investigated_as, targ) %>% summarise(n=dplyr::n())
 ```
 
 ### Retention of metadata; plotting
