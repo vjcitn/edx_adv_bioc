@@ -1,5 +1,5 @@
 ---
-title: "Advanced Bioconductor: working with ENCODE"
+title: "Advanced Bioconductor: working with ENCODE (1)"
 author: "Vincent J. Carey, stvjc at channing.harvard.edu"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 vignette: >
@@ -40,7 +40,7 @@ of mechanisms of gene regulation.  The project [main page](https://www.encodepro
 is a good overview of its scope, involving four main organisms (human, mouse, worm
 and fly) and dozens of biotechnological innovations that
 are used to analyze gene structure and
-regulation.  In this section we will illustrate ways of using Bioconductor
+regulation.  We will illustrate ways of using Bioconductor
 to acquire and interpret ENCODE resources.
 
 Main aims for learners using this document:
