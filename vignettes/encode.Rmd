@@ -66,6 +66,9 @@ types with respect to TF binding patterns.
 be able to shift focus between different experimental aims and assay types to
 pose and answer questions about gene regulation of interest to you.
 
+This document is part 1 of three parts -- the second part addresses
+ATAC-seq, and the third addresses RNA-seq preceded by CRISPR-based interference.
+
 # Built-in surveys through ENCODExplorer metadata
 
 We can use AnnotationHub to get information on ENCODE results that have
