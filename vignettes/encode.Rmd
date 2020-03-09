@@ -178,7 +178,29 @@ points(start(lk2)+.5*width(lk2), lk2$score, pch=19,
 
 ## Exercises
 
-### Retention of metadata
+### Basic descriptive statistics
+
+1. `gf1` represents data on `r ncol(gf1)` ChIP-seq experiments in
+bigWig format.  Use
+the `cloud_metadata.file_size` `colData` component to state a) the median file size, and b) 
+the total number of gigabytes of cloud-resident data to which `gf1` mediates access.
+
+2. What is the most common ChIP-seq target protein studied in the `r ncol(gf1)`
+experiments?
+
+3. What is the most commonly studied cell type in the `r ncol(gf1)`
+experiments?
+
+4. Use the `fm` metadata table.  For the application of the ATAC-seq assay
+to human samples, what is the most common `biosample_name`?
+
+```
+ as_tibble(fm) %>% dplyr::filter(assay == "ATAC-seq" & organism=="Homo sapiens") %>% 
+    dplyr::select(biosample_name) %>% group_by(biosample_name) %>%
+    summarise(n=dplyr::n()) %>% arrange(desc(n))
+```
+
+### Retention of metadata; plotting
 
 The following function, annotated in roxygen format,
 gathers the task of filtering bigWig data of a specific
@@ -188,15 +210,19 @@ output type and target in a given genomic interval.
 #' import bigwig in an interval, given GenomicFiles for ENCODE bigWig files
 #' @param gf GenomicFiles instance
 #' @param target character(1) ChIP-seq target
+#' @param biosample_names character() vector of cell types to retain
 #' @param output_type character(1) defaults to "signal p-value"
 #' @param selection GRanges instance, one range allowed
 #' @export
- import_enc_bw = function(gf, target="CREB1", output_type="signal p-value",
+ import_enc_bw = function(gf, target="CREB1", 
+   biosample_names = c("HepG2", "MCF-7", "A549"), output_type="signal p-value",
    selection= GRanges("chr17", IRanges(66e6,67e6), genome="GRCh38")) {
   stopifnot(length(selection)==1)
   gf_use = gf[, which(gf$target == target)]
   gf_use = gf_use[, 
      which(gf_use$output_type == "signal p-value")]
+  gf_use = gf_use[, 
+     which(gf_use$biosample_name %in% biosample_names)]
   rowRanges(gf_use) = selection
   ans = reduceByFile(gf_use, MAP=function(range, file, ...) {
       sel = BigWigSelection(range)
@@ -207,9 +233,11 @@ output type and target in a given genomic interval.
   ans
 }
 ```
-We can generate our sketch data with a simple call,
+We can generate our sketch data with a pair of simple calls,
 assuming the construction of `gf1` is accomplished as
 above.
+
+First, we generate the requested data on the available biosamples.
 ```{r redosk,cache=TRUE}
 skd = import_enc_bw(gf1)
 ```
@@ -217,4 +245,33 @@ A virtue of this approach is that the cell types (and
 all metadata) are bound to the scores:
 ```{r lkskmet}
 table(mcols(skd)$biosample_name)
+```
+To complete the task, we define a plotting function.
+We'll call it to compare HepG2 and MCF-7 patterns in the selected interval.
+```{r doplp}
+plot_pair = function(impeb, ylim=c(0,500), xlim=c(66.1e6,66.3e6),
+    logy=TRUE, leg_frac_x=.015) {
+  stopifnot(length(impeb)==2)
+  lk1 = impeb[[1]]
+  lk2 = impeb[[2]]
+  if (logy) {
+   lk1 = lk1[which(lk1$score>0)]
+   lk2 = lk2[which(lk2$score>0)]
+   }
+  seqn = as.character(seqnames(impeb[[1]]))[1]
+  g = grep("chr", seqn)
+  if (length(g)==0) seqn=paste0("chr", seqn)
+  targ = mcols(impeb)$target[1]
+  oty = mcols(impeb)$output_type[1]
+  pspec = list(x=start(lk1)+.5*(width(lk1)), y=lk1$score, pch=19,
+   xlab=sprintf("midpoint of scored interval, %s", seqn), ylab=sprintf("bigWig '%s' for %s", oty, targ),
+   cex=.5, col=lava::Col("orange", alpha=.1), ylim=ylim, xlim=xlim, log=ifelse(logy, "y", ""))
+  do.call(plot, pspec)
+  points(start(lk2)+.5*width(lk2), lk2$score, pch=19, 
+   col=lava::Col("blue", alpha=.1), cex=.5)
+  legend(xlim[1]+leg_frac_x*diff(xlim), ylim[2], pch=19, col=lava::Col(c("orange", "blue"), alpha=.1),
+    legend=mcols(impeb)$biosample_name)
+}
+plot_pair(skd[5:6], ylim=c(1,1500), xlim=c(66e6, 67e6), leg_frac_x=.04)
+plot_pair(skd[c(4,7)], ylim=c(1,1500), xlim=c(66e6, 67e6), leg_frac_x=.04)
 ```
