@@ -24,6 +24,10 @@ library(DT)
 library(tibble)
 library(BiocStyle)
 library(lubridate)
+library(ensembldb)
+library(EnsDb.Hsapiens.v79)
+library(GenomicFiles)
+library(ontoProc)
 })
 })
 ```
@@ -416,5 +420,26 @@ seqlevels(s5) = "17"
 Using `genes(EnsDb.Hsapiens.v79)`, find the gene nearest the strongest peak for CREB1
 in HepG2.
 ```{r ans2ov}
+g79 = ensembldb::genes(EnsDb.Hsapiens.v79::EnsDb.Hsapiens.v79)
 g79[ nearest(s5[which.max(s5$score)], g79) ]
 ```
+
+### A different TF target, assayed in a breast cancer cell line.
+
+Run the following code.
+```
+uu = import_enc_bw(gf1, target="FOXA1", 
+       selection=GRanges("chr6", IRanges(151.5e6,152.5e6)), 
+       biosample_names=c("A549", "MCF-7"))
+plot_pair(uu[c("A549", "MCF-7")], xlim=c(151.5e6,152.5e6))
+```
+What gene is nearest to the strongest FOXA1 binding location
+seen in the sample named `MCF-7`?
+```{r lksol,eval=FALSE}
+top = which.max(uu[["MCF-7"]]$score)
+cand = uu[[7]][top]
+seqlevelsStyle(cand) = "NCBI"
+seqlevels(cand) = "6"
+g79[nearest(cand, g79)]
+```
+
