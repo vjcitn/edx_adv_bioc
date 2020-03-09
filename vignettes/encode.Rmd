@@ -83,7 +83,7 @@ AnnotationHub::query(ah, "ENCODExplorerData")
 The recent 'Full' metadata table is over 90MB in
 size, so it takes a few moments to download from cloud (or load from cache,
 in case you have retrieved it previously).
-```
+```{r dofmmm}
 fm = ah[["AH75132"]] # implicitly retrieves if needed, or loads
 dim(fm)
 table(fm$organism)
@@ -155,7 +155,7 @@ We'll define a helper function to report on discrete properties
 of samples.  This gives us clues on the contents of listings of biosample type and
 associated ontology labels.
 ```{r lktls}
-tls = function(x) tail(sort(table(x)))
+tls = function(x) t(t(head(sort(table(x), decreasing=TRUE))))
 tls(gf1$biosample_name)
 tls(gf1$biosample_ontology)
 ```
@@ -255,16 +255,24 @@ sum(as.numeric(gf1$cloud_metadata.file_size))/1e9
 2. What is the most common ChIP-seq target protein studied in the `r ncol(gf1)`
 experiments?
 
+```{r lkans2}
+tls(gf1$target)
+```
+
 3. What is the most commonly studied cell type in the `r ncol(gf1)`
 experiments?
+
+```{r lkans3}
+tls(gf1$biosample_name)
+```
 
 4. Use the `fm` metadata table.  For the application of the ATAC-seq assay
 to human samples, what is the most common `biosample_name`?
 
-```
+```{r lkans4}
  as_tibble(fm) %>% dplyr::filter(assay == "ATAC-seq" & organism=="Homo sapiens") %>% 
-    dplyr::select(biosample_name) %>% group_by(biosample_name) %>%
-    summarise(n=dplyr::n()) %>% arrange(desc(n))
+    dplyr::select(biosample_name) %>% dplyr::group_by(biosample_name) %>%
+    dplyr::summarise(n=dplyr::n()) %>% dplyr::arrange(desc(n))
 ```
 
 5. _Chronology and scope of experimental agenda_.  We can use the `date_created` field to
@@ -272,26 +280,39 @@ document submission of assays of diverse types.  We'll use the `hfm` table for t
 ```{r lktime,cache=TRUE,fig.width=10}
 newt = as_tibble(hfm) %>% 
   dplyr::select(assay, date_created) %>% 
-  mutate(ldate=lubridate::as_date(date_created)) 
+  dplyr::mutate(ldate=lubridate::as_date(date_created)) 
 par(las=2, mar=c(12,4,2,2))
 ameds = sapply(split(newt$ldate, newt$assay), median)
 with(newt, boxplot(split(ldate, assay)[order(ameds)]))
 ```
 How many assays of type `long read RNA-seq` are present?
 
+```{r lkans5}
+sum(hfm$assay == "long read RNA-seq", na.rm=TRUE)
+```
+
 6. RNA-seq preceded by CRISPR interference.
 We use the `dataset_description` to find out about
 genes knocked down in CRISPRi RNA-seq experiments.
-The language in that field is repetitious, and we massage a bit
+The language in that field is repetitious, and we massage its
+values a bit, using `gsub` and `mutate`,
 to get the name of the gene that was putatively knocked down.
 ```{r lkcrs}
-hfm %>% dplyr::filter(assay == "CRISPRi RNA-seq" & file_format=="tsv") %>% 
-  mutate(targ = gsub(
+ii = (hfm %>% dplyr::filter(assay == "CRISPRi RNA-seq" & file_format=="tsv") %>% 
+  dplyr::mutate(targ = gsub(
     "RNA-seq on K562 cells treated by CRISPR interference targeting (..*).", 
      "\\1", dataset_description)) %>%
   dplyr::select(investigated_as, targ) %>% 
-  group_by(investigated_as, targ) %>% summarise(n=dplyr::n())
+  dplyr::group_by(investigated_as, targ) %>% dplyr::summarise(n=dplyr::n()))
+ii
 ```
+For how many different transcription factors, interfered with
+by CRISPR prior to RNA-seq, have tsv files been prepared?
+
+```{r lkans6}
+unique((ii %>% dplyr::filter(investigated_as == "transcription factor"))$targ)
+```
+
 
 ### Retention of metadata; plotting
 
@@ -323,6 +344,7 @@ output type and target in a given genomic interval.
   })
   ans = GRangesList(unlist(ans, recursive=FALSE))
   mcols(ans) = colData(gf_use)
+  names(ans) = make.unique(mcols(ans)$biosample_name)
   ans
 }
 ```
@@ -342,7 +364,15 @@ table(mcols(skd)$biosample_name)
 To complete the task, we define a plotting function.
 We'll call it to compare HepG2 and MCF-7 patterns in the selected interval.
 ```{r doplp}
-plot_pair = function(impeb, ylim=c(0,500), xlim=c(66.1e6,66.3e6),
+#' plot the result of a pair of import_enc_bw runs
+#' @param impeb output of import_enc_bw
+#' @param ylim limits of y axis
+#' @param xlim limits of x axis
+#' @param logy logical(1) whether or not to use log="y" in plot call
+#' @param leg_frac_x numeric(1) fudge factor to move legend to the right of natural
+#' position at xlim[1]
+#' @export
+plot_pair = function(impeb, ylim=c(1,500), xlim=c(66.1e6,66.3e6),
     logy=TRUE, leg_frac_x=.015) {
   stopifnot(length(impeb)==2)
   lk1 = impeb[[1]]
@@ -362,9 +392,29 @@ plot_pair = function(impeb, ylim=c(0,500), xlim=c(66.1e6,66.3e6),
   do.call(plot, pspec)
   points(start(lk2)+.5*width(lk2), lk2$score, pch=19, 
    col=lava::Col("blue", alpha=.1), cex=.5)
-  legend(xlim[1]+leg_frac_x*diff(xlim), ylim[2], pch=19, col=lava::Col(c("orange", "blue"), alpha=.1),
+  legend(xlim[1]+leg_frac_x*diff(xlim), ylim[2], pch=19, col=lava::Col(c("orange", "blue"), alpha=.4),
     legend=mcols(impeb)$biosample_name)
 }
-plot_pair(skd[5:6], ylim=c(1,1500), xlim=c(66e6, 67e6), leg_frac_x=.04)
-plot_pair(skd[c(4,7)], ylim=c(1,1500), xlim=c(66e6, 67e6), leg_frac_x=.04)
+```
+In the following calls, we select distinct pairs of samples from different cell types for
+overlaid visualization within pairs.
+```{r dopair}
+plot_pair(skd[c("HepG2.2", "MCF-7")], ylim=c(1,1500), xlim=c(66e6, 67e6), leg_frac_x=.04)
+plot_pair(skd[c("HepG2.1", "MCF-7.1")], ylim=c(1,1500), xlim=c(66e6, 67e6), leg_frac_x=.04)
+```
+
+1. What is the number of positions at which binding of CREB1 to HepG2 exhibits
+signal p-values consistently greater than those seen for MCF-7 in the two
+displays here?  (0, 1, 4, 10)?
+
+2. Use the following code to simplify the data on one HepG2 sample:
+```{r dosimpss}
+s5 = skd[["HepG2.2"]]
+GenomeInfoDb::seqlevelsStyle(s5) = "NCBI"
+seqlevels(s5) = "17"
+```
+Using `genes(EnsDb.Hsapiens.v79)`, find the gene nearest the strongest peak for CREB1
+in HepG2.
+```{r ans2ov}
+g79[ nearest(s5[which.max(s5$score)], g79) ]
 ```
