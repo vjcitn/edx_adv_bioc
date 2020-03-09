@@ -41,7 +41,7 @@ to acquire and interpret ENCODE resources.
 
 Main aims for learners using this document:
 
-- You will develop an understanding the scope of the ENCODE project, particularly in terms of the
+- You will develop an understanding of the scope of the ENCODE project, particularly in terms of the
 variety of assays and experimental resources.
 - You will be able to explore Bioconductor metadata about the project, surveying
 organism and cell identities, assay types, specific design objectives and assay
@@ -56,6 +56,11 @@ selections from indexed cloud-resident files, avoiding tedious downloading
 of large files.
 - You will see how to "drill through" complex metadata to expose key aspects
 of informally annotated CRISPR interference experiments.
+- You will be provided with code that permits comparison of different cell
+types with respect to TF binding patterns.
+- With the programming framework provided in this narrative and exercises, you will
+be able to shift focus between different experimental aims and assay types to
+pose and answer questions about gene regulation of interest to you.
 
 # Built-in surveys through ENCODExplorer metadata
 
@@ -68,17 +73,23 @@ curated in the cloud by the ENCODE project.
 
 ## Using a local metadata cache 
 
-This table is over 90MB in
-size, so it takes a few moments to download from cloud or load from cache.
-
+We'll begin with a query to AnnotationHub to learn about resources
+whose metadata mentions "ENCODExplorerData".
 ```{r doen1,cache=TRUE}
 library(AnnotationHub)
 ah = AnnotationHub()
-query(ah, "ENCODExplorerData")
-fm = ah[["AH75132"]]
+AnnotationHub::query(ah, "ENCODExplorerData")
+```
+The recent 'Full' metadata table is over 90MB in
+size, so it takes a few moments to download from cloud (or load from cache,
+in case you have retrieved it previously).
+```
+fm = ah[["AH75132"]] # implicitly retrieves if needed, or loads
 dim(fm)
 table(fm$organism)
 ```
+We are working with `r nrow(fm)` records on `r length(table(fm$organism))`
+different organisms.
 
 ## Filtering the metadata table
 
@@ -108,17 +119,24 @@ hfmtbw = hfmt[hfmt$file_type == "bigWig",]
 dim(hfmtbw)
 table(hfmtbw$output_type)
 ```
-<!--
-Note that IDR denotes "irreproducible discovery rate" a measure of
-confidence [developed within ENCODE](https://genome.ucsc.edu/ENCODE/qualityMetrics.html).
--->
 ```{r dogf}
 library(GenomicFiles)
 gf1 = GenomicFiles(files=hfmtbw$cloud_metadata.url)
 colData(gf1) = as(as.data.frame(hfmtbw), "DataFrame")
+gf1
+```
+The `gf1` object reports only the "basename" component of the names of
+files managed.  The actual filename (URL) for the first file is
+```{r lkfi}
+GenomicFiles::files(gf1)[1]
+```
+A virtues of the GenomicFiles discipline is that we keep together
+the file identifiers and metadata about them.  The following
+information is crucial to downstream use of the files.
+```{r lkass}
 table(gf1$assembly)
 ```
-This last table is very important, indicating that we are managing information
+This table is very important, indicating that we are managing information
 for which two genomic coordinate systems are in play.  In the introduction
 to Bioconductor, it is shown
 how `liftOver` can be used to translate between coordinate systems if needed.
@@ -198,6 +216,28 @@ points(start(lk2)+.5*width(lk2), lk2$score, pch=19,
  col=lava::Col("blue", alpha=.3), cex=.5)
 ```
 
+## Summary
+
+Review the following concepts before proceeding to exercises.
+ 
+- We created the data.table instance `fm`, which is a creation of the developers
+of the ENCODExplorer package.  We retrieved this table using `r Biocpkg("AnnotationHub")`.
+The number of rows of `fm` is the number of metadata records related to experiments
+performed in ENCODE.  The number of columns of `fm` is the number of metadata fields
+descriptive of the experiments.
+- We filtered the metadata to `hfmtbw` to limit attention to bigWig files collected
+on human samples.  The metadata field `cloud_metadata.url` gives the URL of each
+such file.
+- The metadata fields `biosample_name` and `biosample_ontology` give information
+(less and more formal, respectively) about anatomic or cell-culture origins of samples.
+Ontological relationships among sample types can be useful for organizing investigations
+and the `r Biocpkg("ontoProc")` `onto_plot2` function was used to sketch relationships
+among terms used to annotate samples.
+- We extracted information from small numbers of bigWig files using `BigWigSelection`
+and `import.bw` from `r Biocpkg("rtracklayer")`, applied to cloud-resident files
+through the `reduceByFile` method of `r Biocpkg("GenomicFiles")`.  The resulting
+scored GRanges instances were visualized using standard R plotting.
+
 ## Exercises
 
 ### Basic descriptive statistics
@@ -206,6 +246,11 @@ points(start(lk2)+.5*width(lk2), lk2$score, pch=19,
 bigWig format.  Use
 the `cloud_metadata.file_size` `colData` component to state a) the median file size, and b) 
 the total number of gigabytes of cloud-resident data to which `gf1` mediates access.
+
+```{r ans1}
+median(as.numeric(gf1$cloud_metadata.file_size))
+sum(as.numeric(gf1$cloud_metadata.file_size))/1e9
+```
 
 2. What is the most common ChIP-seq target protein studied in the `r ncol(gf1)`
 experiments?
