@@ -3,7 +3,10 @@ Title: course development, edx advanced bioconductor
 Description: Document course development for edx advanced bioconductor.
 Version: 0.0.5
 Author: Vince Carey
-Suggests: knitr, mlr3, mlr3learners, mlr3filters, mlr3cluster
+Suggests: knitr, mlr3, mlr3learners, mlr3filters, mlr3cluster, 
+	rtracklayer, DT, tibble, BiocStyle, lubridate, ensembldb,  
+	EnsDb.Hsapiens.v79, GenomicFiles, ontoProc, AnnotationHub,  
+	GenomicFiles, ontoProc, dplyr, lava, GenomeInfoDb
 Imports: shiny, DT, org.Hs.eg.db, GO.db, miniUI
 Depends: 
 Maintainer: VJ Carey <stvjc@channing.harvard.edu>

@@ -207,7 +207,9 @@ files selected in this way, using `reduceByFile`:
 myr = GRanges("chr17", IRanges(66e6,67e6))
 genome(myr) = "GRCh38"
 rowRanges(gf1_creb1_use) = myr
-sels = reduceByFile(gf1_creb1_use, MAP=function(range, file, ...) {
+if (.Platform$OS.type == "windows") {
+  sels = edxAdvBioc::creb1_sels
+  } else sels = reduceByFile(gf1_creb1_use, MAP=function(range, file, ...) {
     sel = BigWigSelection(range)
     import.bw(file, selection=sel, genome=genome(myr)[1])
 })
@@ -361,7 +363,9 @@ above.
 
 First, we generate the requested data on the available biosamples.
 ```{r redosk,cache=TRUE}
-skd = import_enc_bw(gf1)
+if (.Platform$OS.type == "windows") {
+  skd = edxAdvBioc::skd
+  } else skd = import_enc_bw(gf1)
 ```
 A virtue of this approach is that the cell types (and
 all metadata) are bound to the scores:
@@ -431,7 +435,9 @@ g79[ nearest(s5[which.max(s5$score)], g79) ]
 
 Run the following code.
 ```
-uu = import_enc_bw(gf1, target="FOXA1", 
+if (.Platform$OS.type == "windows") {
+  uu = edxAdvBioc::uu
+} else uu = import_enc_bw(gf1, target="FOXA1", 
        selection=GRanges("chr6", IRanges(151.5e6,152.5e6)), 
        biosample_names=c("A549", "MCF-7"))
 plot_pair(uu[c("A549", "MCF-7")], xlim=c(151.5e6,152.5e6))
