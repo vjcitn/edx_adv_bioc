@@ -4,7 +4,7 @@
 \alias{plot.nnet}
 \title{slightly modified program from beckmw gist (see note below)}
 \usage{
-\method{plot}{nnet}(
+plot.nnet(
   mod.in,
   nid = T,
   all.out = T,
